@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Food Spoiler Alert Dashboard</title>
+  </head>
+  <body class="bg-gray-100">
+    <div id="app" class="min-h-screen">
+      <!-- Header -->
+      <header class="bg-white shadow-md">
+        <div class="container mx-auto px-4 py-6">
+          <h1 class="text-3xl font-bold text-gray-800">Food Spoiler Alert Dashboard</h1>
+        </div>
+      </header>
+
+      <!-- Main Dashboard -->
+      <main class="container mx-auto px-4 py-8">
+        <!-- Sensor Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <!-- Temperature Card -->
+          <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold text-gray-700 mb-2">Temperature</h2>
+            <div id="temperature-value" class="text-3xl font-bold text-blue-600">--°C</div>
+            <div id="temperature-status" class="mt-2 text-sm"></div>
+          </div>
+
+          <!-- Humidity Card -->
+          <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold text-gray-700 mb-2">Humidity</h2>
+            <div id="humidity-value" class="text-3xl font-bold text-green-600">--%</div>
+            <div id="humidity-status" class="mt-2 text-sm"></div>
+          </div>
+
+          <!-- Gas Levels Card -->
+          <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold text-gray-700 mb-2">Gas Levels</h2>
+            <div id="gas-value" class="text-3xl font-bold text-purple-600">-- PPM</div>
+            <div id="gas-status" class="mt-2 text-sm"></div>
+          </div>
+        </div>
+
+         <!-- Chart Section -->
+        <!-- Reading progress counter -->
+<!-- <div class="bg-white shadow rounded-lg p-4 mb-4">
+  <h2 class="text-lg font-semibold mb-2">Data Collection Progress</h2>
+  <p>Collecting readings: <span id="reading-counter">0/10</span></p>
+</div> -->
+<!-- Reading progress counter and refresh button -->
+<div class="bg-white shadow rounded-lg p-4 mb-4">
+  <div class="flex justify-between items-center">
+    <div>
+      <h2 class="text-lg font-semibold mb-2">Data Collection Progress</h2>
+      <p>Collecting readings: <span id="reading-counter">0/10</span></p>
+    </div>
+    <button 
+      id="refresh-button" 
+      class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      Refresh Data
+    </button>
+  </div>
+</div>
+<!-- Averages section (initially hidden) -->
+<div id="averages-container" class="bg-white shadow rounded-lg p-4 mb-4">
+  <h2 class="text-lg font-semibold mb-2">Average Readings</h2>
+  
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="p-4 bg-blue-50 rounded-lg">
+      <h3 class="font-medium">Average Temperature</h3>
+      <p id="avg-temperature" class="text-2xl font-bold">--°C</p>
+      <p id="avg-temp-status" class="mt-2 text-sm text-green-600">Normal</p>
+    </div>
+    
+    <div class="p-4 bg-green-50 rounded-lg">
+      <h3 class="font-medium">Average Humidity</h3>
+      <p id="avg-humidity" class="text-2xl font-bold">--%</p>
+      <p id="avg-humidity-status" class="mt-2 text-sm text-green-600">Normal</p>
+    </div>
+    
+    <div class="p-4 bg-purple-50 rounded-lg">
+      <h3 class="font-medium">Average Moisture</h3>
+      <p id="avg-moisture" class="text-2xl font-bold">-- PPM</p>
+      <p id="avg-moisture-status" class="mt-2 text-sm text-green-600">Normal</p>
+    </div>
+  </div>
+</div>
+        
+
+<!-- Individual chart containers -->
+<div class="chart-container bg-white shadow rounded-lg p-4 mb-4">
+  <canvas id="temperatureChart"></canvas>
+</div>
+
+<div class="chart-container bg-white shadow rounded-lg p-4 mb-4">
+  <canvas id="humidityChart"></canvas>
+</div>
+
+<div class="chart-container bg-white shadow rounded-lg p-4 mb-4">
+  <canvas id="moistureChart"></canvas>
+</div>
+        <!-- <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 class="text-xl font-semibold text-gray-700 mb-4">Sensor Data Trends</h2>
+          <canvas id="sensorChart" class="w-full h-64"></canvas>
+        </div> -->
+  <!-- Threshold Settings --> 
+        <div class="bg-white rounded-lg shadow-md p-6">
+          <h2 class="text-xl font-semibold text-gray-700 mb-4">Alert Thresholds</h2>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Temperature (°C)</label>
+              <input type="number" id="temp-threshold" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200" value="25">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Humidity (%)</label>
+              <input type="number" id="humidity-threshold" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring focus:ring-green-200" value="70">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Gas Levels (PPM)</label>
+              <input type="number" id="gas-threshold" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-200" value="1000">
+            </div>
+          </div>
+          <button id="save-thresholds" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+            Save Thresholds
+          </button>
+        </div>
+      </main>
+    </div>
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>

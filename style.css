@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles */
+.card {
+  @apply bg-white rounded-lg shadow-md p-6 transition-transform duration-200;
+}
+
+.card:hover {
+  @apply transform scale-105;
+}
+
+input[type="number"] {
+  @apply mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-200;
+}
+
+button {
+  @apply transition-colors duration-200;
+}
