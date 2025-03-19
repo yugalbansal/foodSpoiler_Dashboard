@@ -295,8 +295,8 @@ let thresholds = {
 
 // Store readings collection
 let readings = [];
-const TOTAL_READINGS = 10;
-const READING_INTERVAL = 5000; // 5 seconds
+const TOTAL_READINGS = 5;
+const READING_INTERVAL = 2500; // 5 seconds
 
 // Chart objects
 let temperatureChart;
