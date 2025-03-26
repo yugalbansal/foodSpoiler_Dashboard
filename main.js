@@ -7,277 +7,178 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Threshold values and ID
-let thresholds = {
-  temperature: 25,
-  humidity: 70,
-  gas: 1000 // I'm assuming this is equivalent to "moisture" in your requirements
+// Food type thresholds (to be updated with actual values)
+const foodThresholds = {
+  citrus: { temperature: 25, humidity: 70, gas: 1000 },
+  berries: { temperature: 25, humidity: 70, gas: 1000 },
+  stone: { temperature: 25, humidity: 70, gas: 1000 },
+  tropical: { temperature: 25, humidity: 70, gas: 1000 },
+  temperate: { temperature: 25, humidity: 70, gas: 1000 },
+  leafy: { temperature: 25, humidity: 70, gas: 1000 },
+  root: { temperature: 25, humidity: 70, gas: 1000 }
 };
-let thresholdId = null;
 
-// Store readings collection
+let currentThresholds = null;
+let isMonitoring = false;
 let readings = [];
-const TOTAL_READINGS = 10;
-const READING_INTERVAL = 5000; // 5 seconds
 
 // Chart objects
 let temperatureChart;
 let humidityChart;
 let moistureChart;
 
-// Track if data collection is in progress
-let isCollecting = false;
-
 // Initialize the dashboard
-async function initDashboard() {
-  await fetchCurrentThresholds();
-  setupThresholdListeners();
-  setupRefreshButton();
-  hideGraphs(); // Hide graphs initially
-  startDataCollection();
+function initDashboard() {
+  setupFoodTypeSelector();
+  setupStartButton();
+  setupCharts();
 }
 
-// Fetch current threshold values from Supabase
-async function fetchCurrentThresholds() {
-  try {
-    const { data, error } = await supabase
-      .from('thresholds')
-      .select('*')
-      .limit(1);
-
-    if (error) throw error;
-
-    if (data && data.length > 0) {
-      thresholdId = data[0].id;
-      thresholds = {
-        temperature: data[0].temperature,
-        humidity: data[0].humidity,
-        gas: data[0].gas_level
-      };
-      
-      // Update the input fields with current values
-      document.getElementById('temp-threshold').value = thresholds.temperature;
-      document.getElementById('humidity-threshold').value = thresholds.humidity;
-      document.getElementById('gas-threshold').value = thresholds.gas;
-    }
-  } catch (error) {
-    console.error('Error fetching thresholds:', error);
-    showNotification('Failed to load threshold values.');
-  }
-}
-
-// Update thresholds in Supabase
-async function updateThresholds(newThresholds) {
-  try {
-    const { error } = await supabase
-      .from('thresholds')
-      .update({
-        temperature: newThresholds.temperature,
-        humidity: newThresholds.humidity,
-        gas_level: newThresholds.gas,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', thresholdId);
-
-    if (error) throw error;
+// Set up food type selector
+function setupFoodTypeSelector() {
+  const selector = document.getElementById('food-type');
+  const startButton = document.getElementById('start-monitoring');
+  const customInputs = document.getElementById('custom-inputs');
+  
+  selector.addEventListener('change', async (e) => {
+    const selectedType = e.target.value;
     
-    return true;
-  } catch (error) {
-    console.error('Error updating thresholds:', error);
-    showNotification('Failed to update thresholds in database.');
-    return false;
-  }
-}
-
-// Set up refresh button listener
-function setupRefreshButton() {
-  document.getElementById('refresh-button').addEventListener('click', () => {
-    // Only allow refresh if we're not already collecting data
-    if (!isCollecting) {
-      // Reset the UI
-      hideGraphs();
-      
-      // Start a new collection cycle
-      startDataCollection();
+    if (selectedType) {
+      // If custom is selected, show custom input fields
+      if (selectedType === 'custom') {
+        customInputs.classList.remove('hidden');
+        
+        // Populate custom inputs with default values
+        document.getElementById('custom-temperature').value = foodThresholds.custom?.temperature || 25;
+        document.getElementById('custom-humidity').value = foodThresholds.custom?.humidity || 70;
+        document.getElementById('custom-gas').value = foodThresholds.custom?.gas || 1000;
+      } else {
+        customInputs.classList.add('hidden');
+        
+        // Set current thresholds
+        currentThresholds = foodThresholds[selectedType];
+        
+        // Update thresholds in Supabase
+        try {
+          // First, delete existing thresholds
+          await supabase
+            .from('thresholds')
+            .delete()
+            .neq('id', '0'); // Delete all existing records
+          
+          // Insert new thresholds
+          const { error } = await supabase
+            .from('thresholds')
+            .insert([{
+              temperature: currentThresholds.temperature,
+              humidity: currentThresholds.humidity,
+              gas_level: currentThresholds.gas,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }]);
+          
+          if (error) throw error;
+          
+          showNotification(`Thresholds updated for ${selectedType}`);
+        } catch (error) {
+          console.error('Error updating thresholds:', error);
+          showNotification('Failed to update thresholds');
+        }
+        
+        startButton.disabled = false;
+      }
     } else {
-      showNotification('Data collection already in progress!');
+      currentThresholds = null;
+      startButton.disabled = true;
     }
   });
-}
 
-// Hide graph containers until we have 10 readings
-function hideGraphs() {
-  const graphContainers = document.querySelectorAll('.chart-container');
-  graphContainers.forEach(container => {
-    container.style.display = 'none';
-  });
-  
-  // Hide averages section
-  document.getElementById('averages-container').style.display = 'none';
-}
-
-// Show graph containers after we have 10 readings
-function showGraphs() {
-  const graphContainers = document.querySelectorAll('.chart-container');
-  graphContainers.forEach(container => {
-    container.style.display = 'block';
-  });
-  
-  // Show averages section
-  document.getElementById('averages-container').style.display = 'block';
-}
-
-// Set up individual Charts
-function setupCharts() {
-  // Temperature Chart
-  const tempCtx = document.getElementById('temperatureChart').getContext('2d');
-  tempCtx.canvas.style.height = "50vh";
-  
-  // Humidity Chart
-  const humidityCtx = document.getElementById('humidityChart').getContext('2d');
-  humidityCtx.canvas.style.height = "50vh";
-  
-  // Moisture/Gas Chart
-  const moistureCtx = document.getElementById('moistureChart').getContext('2d');
-  moistureCtx.canvas.style.height = "50vh";
-  
-  const timeLabels = readings.map(d => formatTime(d.created_at));
-  
-  // Clean up old charts if they exist
-  if (temperatureChart) temperatureChart.destroy();
-  if (humidityChart) humidityChart.destroy();
-  if (moistureChart) moistureChart.destroy();
-  
-  temperatureChart = new Chart(tempCtx, {
-    type: 'line',
-    data: {
-      labels: timeLabels,
-      datasets: [{
-        label: 'Temperature (°C)',
-        borderColor: 'rgb(59, 130, 246)',
-        data: readings.map(d => d.temperature)
-      }]
-    },
-    options: createChartOptions('Temperature (°C)')
-  });
-  
-  humidityChart = new Chart(humidityCtx, {
-    type: 'line',
-    data: {
-      labels: timeLabels,
-      datasets: [{
-        label: 'Humidity (%)',
-        borderColor: 'rgb(34, 197, 94)',
-        data: readings.map(d => d.humidity)
-      }]
-    },
-    options: createChartOptions('Humidity (%)')
-  });
-  
-  moistureChart = new Chart(moistureCtx, {
-    type: 'line',
-    data: {
-      labels: timeLabels,
-      datasets: [{
-        label: 'Moisture Levels (PPM)',
-        borderColor: 'rgb(147, 51, 234)',
-        data: readings.map(d => d.gas_level)
-      }]
-    },
-    options: createChartOptions('Moisture Levels (PPM)')
-  });
-}
-
-// Create chart options with auto scaling
-function createChartOptions(title) {
-  return {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      title: {
-        display: true,
-        text: title
-      }
-    },
-    scales: {
-      y: {
-        beginAtZero: false, // Allow scale to adapt to data
-        grid: {
-          color: "rgba(0,0,0,0.1)",
-          lineWidth: 1
-        },
-        ticks: {
-          autoSkip: true
-        }
-      },
-      x: {
-        grid: {
-          color: "rgba(0,0,0,0.1)",
-          lineWidth: 1
-        }
-      }
-    }
-  };
-}
-
-// Start collecting data at 5-second intervals
-function startDataCollection() {
-  isCollecting = true;
-  
-  // Update refresh button state
-  const refreshButton = document.getElementById('refresh-button');
-  refreshButton.disabled = true;
-  refreshButton.classList.add('opacity-50', 'cursor-not-allowed');
-  
-  const readingCounter = document.getElementById('reading-counter');
-  readingCounter.textContent = `0/${TOTAL_READINGS}`;
-  
-  readings = []; // Reset readings array
-  
-  const dataTimer = setInterval(async () => {
-    await fetchLatestData();
+  // Handle custom input submission
+  document.getElementById('custom-submit').addEventListener('click', async () => {
+    const temperature = parseFloat(document.getElementById('custom-temperature').value);
+    const humidity = parseFloat(document.getElementById('custom-humidity').value);
+    const gas = parseFloat(document.getElementById('custom-gas').value);
     
-    // Update reading counter
-    readingCounter.textContent = `${readings.length}/${TOTAL_READINGS}`;
+    // Update custom thresholds
+    foodThresholds.custom = { temperature, humidity, gas };
     
-    if (readings.length >= TOTAL_READINGS) {
-      clearInterval(dataTimer);
+    try {
+      // First, delete existing thresholds
+      await supabase
+        .from('thresholds')
+        .delete()
+        .neq('id', '0'); // Delete all existing records
       
-      // Calculate and display averages
-      calculateAverages();
+      // Insert new custom thresholds
+      const { error } = await supabase
+        .from('thresholds')
+        .insert([{
+          temperature,
+          humidity,
+          gas_level: gas,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }]);
       
-      // Setup and show charts
-      setupCharts();
-      showGraphs();
+      if (error) throw error;
       
-      // Update collection status
-      isCollecting = false;
+      // Set current thresholds
+      currentThresholds = { temperature, humidity, gas };
       
-      // Re-enable refresh button
-      refreshButton.disabled = false;
-      refreshButton.classList.remove('opacity-50', 'cursor-not-allowed');
+      // Hide custom inputs
+      document.getElementById('custom-inputs').classList.add('hidden');
       
-      showNotification('Data collection complete! View results or click refresh to start again.');
+      // Reset selector to custom
+      document.getElementById('food-type').value = 'custom';
+      
+      showNotification('Custom thresholds updated and saved');
+      
+      // Enable start button
+      document.getElementById('start-monitoring').disabled = false;
+    } catch (error) {
+      console.error('Error updating custom thresholds:', error);
+      showNotification('Failed to update custom thresholds');
     }
-  }, READING_INTERVAL);
+  });
 }
 
-// Calculate averages of collected readings
-function calculateAverages() {
-  // Calculate averages
-  const avgTemperature = readings.reduce((sum, reading) => sum + reading.temperature, 0) / readings.length;
-  const avgHumidity = readings.reduce((sum, reading) => sum + reading.humidity, 0) / readings.length;
-  const avgMoisture = readings.reduce((sum, reading) => sum + reading.gas_level, 0) / readings.length;
+// Set up start monitoring button
+function setupStartButton() {
+  const startButton = document.getElementById('start-monitoring');
   
-  // Update averages display
-  document.getElementById('avg-temperature').textContent = `${avgTemperature.toFixed(2)}°C`;
-  document.getElementById('avg-humidity').textContent = `${avgHumidity.toFixed(2)}%`;
-  document.getElementById('avg-moisture').textContent = `${avgMoisture.toFixed(2)} PPM`;
+  startButton.addEventListener('click', () => {
+    if (!isMonitoring) {
+      isMonitoring = true;
+      startButton.textContent = 'Stop Monitoring';
+      startButton.classList.replace('bg-blue-500', 'bg-red-500');
+      startButton.classList.replace('hover:bg-blue-600', 'hover:bg-red-600');
+      startMonitoring();
+    } else {
+      isMonitoring = false;
+      startButton.textContent = 'Start Monitoring';
+      startButton.classList.replace('bg-red-500', 'bg-blue-500');
+      startButton.classList.replace('hover:bg-red-600', 'hover:bg-blue-600');
+      stopMonitoring();
+    }
+  });
+}
+
+let monitoringInterval;
+
+// Start monitoring readings
+function startMonitoring() {
+  // Clear existing readings
+  readings = [];
+  document.getElementById('readings-list').innerHTML = '';
   
-  // Check against thresholds
-  updateStatus(document.getElementById('avg-temp-status'), avgTemperature, thresholds.temperature, 'Average temperature');
-  updateStatus(document.getElementById('avg-humidity-status'), avgHumidity, thresholds.humidity, 'Average humidity');
-  updateStatus(document.getElementById('avg-moisture-status'), avgMoisture, thresholds.gas, 'Average moisture');
+  // Start fetching new readings
+  fetchLatestData(); // Fetch immediately
+  monitoringInterval = setInterval(fetchLatestData, 5000); // Then every 5 seconds
+}
+
+// Stop monitoring readings
+function stopMonitoring() {
+  clearInterval(monitoringInterval);
 }
 
 // Fetch latest sensor data
@@ -292,11 +193,41 @@ async function fetchLatestData() {
     if (error) throw error;
 
     if (data && data.length > 0) {
-      readings.push(data[0]);
-      updateDashboard(data[0]);
+      const reading = data[0];
+      readings.push(reading);
+      updateDashboard(reading);
+      addReadingToList(reading);
+      updateCharts();
     }
   } catch (error) {
     console.error('Error fetching data:', error);
+    showNotification('Error fetching sensor data');
+  }
+}
+
+// Add a new reading to the list
+function addReadingToList(reading) {
+  const readingsList = document.getElementById('readings-list');
+  const readingElement = document.createElement('div');
+  readingElement.className = 'p-4 bg-gray-50 rounded-lg';
+  
+  const time = new Date(reading.created_at).toLocaleTimeString();
+  readingElement.innerHTML = `
+    <div class="flex justify-between items-center">
+      <span class="text-sm text-gray-500">${time}</span>
+      <div class="space-x-4">
+        <span class="text-blue-600">${reading.temperature}°C</span>
+        <span class="text-green-600">${reading.humidity}%</span>
+        <span class="text-purple-600">${reading.gas_level} PPM</span>
+      </div>
+    </div>
+  `;
+  
+  readingsList.insertBefore(readingElement, readingsList.firstChild);
+  
+  // Keep only the last 10 readings in the list
+  if (readingsList.children.length > 10) {
+    readingsList.removeChild(readingsList.lastChild);
   }
 }
 
@@ -306,19 +237,19 @@ function updateDashboard(data) {
   const tempElement = document.getElementById('temperature-value');
   const tempStatus = document.getElementById('temperature-status');
   tempElement.textContent = `${data.temperature}°C`;
-  updateStatus(tempStatus, data.temperature, thresholds.temperature, 'Temperature');
+  updateStatus(tempStatus, data.temperature, currentThresholds.temperature, 'Temperature');
 
   // Update humidity
   const humidityElement = document.getElementById('humidity-value');
   const humidityStatus = document.getElementById('humidity-status');
   humidityElement.textContent = `${data.humidity}%`;
-  updateStatus(humidityStatus, data.humidity, thresholds.humidity, 'Humidity');
+  updateStatus(humidityStatus, data.humidity, currentThresholds.humidity, 'Humidity');
 
-  // Update moisture/gas levels
-  const moistureElement = document.getElementById('gas-value');
-  const moistureStatus = document.getElementById('gas-status');
-  moistureElement.textContent = `${data.gas_level} PPM`;
-  updateStatus(moistureStatus, data.gas_level, thresholds.gas, 'Moisture level');
+  // Update gas levels
+  const gasElement = document.getElementById('gas-value');
+  const gasStatus = document.getElementById('gas-status');
+  gasElement.textContent = `${data.gas_level} PPM`;
+  updateStatus(gasStatus, data.gas_level, currentThresholds.gas, 'Gas level');
 }
 
 // Update status indicators
@@ -333,72 +264,105 @@ function updateStatus(element, value, threshold, sensorType) {
   }
 }
 
-function formatTime(timestamp) {
-  const date = new Date(timestamp);
-  return date.toLocaleTimeString(); // Converts to a readable time string (HH:MM:SS)
-}
+// Set up charts
+function setupCharts() {
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      y: {
+        beginAtZero: false,
+      }
+    },
+    plugins: {
+      legend: {
+        display: true,
+      }
+    }
+  };
 
-// Set up threshold input listeners
-function setupThresholdListeners() {
-  document.getElementById('save-thresholds').addEventListener('click', async () => {
-    const newThresholds = {
-      temperature: parseFloat(document.getElementById('temp-threshold').value),
-      humidity: parseFloat(document.getElementById('humidity-threshold').value),
-      gas: parseFloat(document.getElementById('gas-threshold').value)
-    };
-    
-    // Validate input values
-    if (isNaN(newThresholds.temperature) || isNaN(newThresholds.humidity) || isNaN(newThresholds.gas)) {
-      showNotification('Please enter valid numbers for all threshold values.');
-      return;
-    }
-    
-    // Update UI first (optimistic update)
-    thresholds = newThresholds;
-    showNotification('Updating thresholds...');
-    
-    // Update in database
-    const success = await updateThresholds(newThresholds);
-    
-    if (success) {
-      showNotification('Thresholds updated successfully in database!');
-    }
+  // Initialize empty charts
+  temperatureChart = new Chart(document.getElementById('temperatureChart'), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Temperature (°C)',
+        data: [],
+        borderColor: 'rgb(59, 130, 246)',
+        tension: 0.1
+      }]
+    },
+    options
+  });
+
+  humidityChart = new Chart(document.getElementById('humidityChart'), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Humidity (%)',
+        data: [],
+        borderColor: 'rgb(34, 197, 94)',
+        tension: 0.1
+      }]
+    },
+    options
+  });
+
+  moistureChart = new Chart(document.getElementById('moistureChart'), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Gas Levels (PPM)',
+        data: [],
+        borderColor: 'rgb(147, 51, 234)',
+        tension: 0.1
+      }]
+    },
+    options
   });
 }
 
-// Show browser notifications
-function showNotification(message) {
-  // Show in UI first (create a notification element if it doesn't exist)
-  const notificationArea = document.getElementById('notification-area') || 
-    (() => {
-      const area = document.createElement('div');
-      area.id = 'notification-area';
-      area.className = 'fixed bottom-4 right-4 z-50';
-      document.body.appendChild(area);
-      return area;
-    })();
+// Update charts with new data
+function updateCharts() {
+  const labels = readings.map(r => new Date(r.created_at).toLocaleTimeString());
   
+  temperatureChart.data.labels = labels;
+  temperatureChart.data.datasets[0].data = readings.map(r => r.temperature);
+  temperatureChart.update();
+
+  humidityChart.data.labels = labels;
+  humidityChart.data.datasets[0].data = readings.map(r => r.humidity);
+  humidityChart.update();
+
+  moistureChart.data.labels = labels;
+  moistureChart.data.datasets[0].data = readings.map(r => r.gas_level);
+  moistureChart.update();
+}
+
+// Show notifications
+function showNotification(message) {
+  // Create notification area if it doesn't exist
+  let notificationArea = document.getElementById('notification-area');
+  if (!notificationArea) {
+    notificationArea = document.createElement('div');
+    notificationArea.id = 'notification-area';
+    notificationArea.className = 'fixed bottom-4 right-4 z-50';
+    document.body.appendChild(notificationArea);
+  }
+
   const notification = document.createElement('div');
   notification.className = 'bg-blue-500 text-white px-4 py-2 rounded shadow-lg mb-2';
   notification.textContent = message;
   notificationArea.appendChild(notification);
-  
-  // Remove after 3 seconds
+
   setTimeout(() => {
     notification.remove();
   }, 3000);
-  
-  // Also try browser notifications if available
-  if ('Notification' in window && Notification.permission === 'granted') {
-    new Notification(message);
-  } else if ('Notification' in window && Notification.permission !== 'denied') {
-    Notification.requestPermission().then(permission => {
-      if (permission === 'granted') {
-        new Notification(message);
-      }
-    });
-  }
 }
 
 // Initialize the dashboard when the page loads
 document.addEventListener('DOMContentLoaded', initDashboard);
+
