@@ -24,6 +24,7 @@ let readings = [];
 let monitoringTimeout = null;
 let noReadingsTimeout = null;
 let lastReadingTimestamp = null;
+let monitoringStartTime = null;
 
 // Chart objects
 let temperatureChart;
@@ -142,6 +143,8 @@ function setupStartButton() {
       startButton.classList.replace('bg-red-500', 'bg-blue-500');
       startButton.classList.replace('hover:bg-red-600', 'hover:bg-blue-600');
       stopMonitoring();
+      // Calculate and display the spoilage status after stopping
+      calculateSpoilageStatus();
     }
   });
 }
@@ -150,10 +153,14 @@ function setupStartButton() {
 function startMonitoring() {
   readings = [];
   lastReadingTimestamp = null;
+  monitoringStartTime = new Date().toISOString();
+  
+  // Clear any existing readings and status
   document.getElementById('readings-list').innerHTML = '';
   document.getElementById('waiting-message').classList.remove('hidden');
+  document.getElementById('spoilage-status').classList.add('hidden');
   
-  // Initialize with zero values
+  // Initialize with zero values in the UI but don't add to readings array
   const initialReading = {
     temperature: 0,
     humidity: 0,
@@ -162,17 +169,15 @@ function startMonitoring() {
   };
   
   // Update UI with initial zero values
-  updateDashboard(initialReading);
-  addReadingToList(initialReading);
-  readings.push(initialReading);
-  updateCharts();
+  updateDashboard(initialReading, false);
+  
+  // Reset the charts with empty data
+  resetCharts();
   
   noReadingsTimeout = setTimeout(() => {
-    if (readings.length === 1) { // Only initial reading
-      document.getElementById('waiting-message').classList.add('hidden');
-      document.getElementById('readings-list').innerHTML = 
-        '<div class="text-gray-500">No readings updated on database</div>';
-    }
+    document.getElementById('waiting-message').classList.add('hidden');
+    document.getElementById('readings-list').innerHTML = 
+      '<div class="text-gray-500">No new readings found</div>';
   }, 120000); // 2 minutes
   
   fetchLatestData();
@@ -189,9 +194,11 @@ function stopMonitoring() {
 // Fetch latest sensor data
 async function fetchLatestData() {
   try {
+    // Only fetch data that was created after monitoring started
     const { data, error } = await supabase
       .from('sensor_data')
       .select('*')
+      .gt('created_at', monitoringStartTime)
       .order('created_at', { ascending: false })
       .limit(1);
 
@@ -207,7 +214,7 @@ async function fetchLatestData() {
         
         lastReadingTimestamp = readingTimestamp;
         readings.push(reading);
-        updateDashboard(reading);
+        updateDashboard(reading, true);
         addReadingToList(reading);
         updateCharts();
       }
@@ -305,21 +312,32 @@ function addReadingToList(reading) {
 }
 
 // Update dashboard with new values
-function updateDashboard(data) {
+function updateDashboard(data, updateStatus = true) {
   const tempElement = document.getElementById('temperature-value');
   const tempStatus = document.getElementById('temperature-status');
   tempElement.textContent = `${data.temperature}°C`;
-  updateStatus(tempStatus, data.temperature, currentThresholds.temperature, 'Temperature');
-
+  
   const humidityElement = document.getElementById('humidity-value');
   const humidityStatus = document.getElementById('humidity-status');
   humidityElement.textContent = `${data.humidity}%`;
-  updateStatus(humidityStatus, data.humidity, currentThresholds.humidity, 'Humidity');
-
+  
   const gasElement = document.getElementById('gas-value');
   const gasStatus = document.getElementById('gas-status');
   gasElement.textContent = `${data.gas_level} PPM`;
-  updateStatus(gasStatus, data.gas_level, currentThresholds.gas, 'Gas level');
+  
+  if (updateStatus && currentThresholds) {
+    updateStatus(tempStatus, data.temperature, currentThresholds.temperature, 'Temperature');
+    updateStatus(humidityStatus, data.humidity, currentThresholds.humidity, 'Humidity');
+    updateStatus(gasStatus, data.gas_level, currentThresholds.gas, 'Gas level');
+  } else {
+    // Clear status indicators
+    tempStatus.textContent = '';
+    tempStatus.className = 'mt-2 text-sm';
+    humidityStatus.textContent = '';
+    humidityStatus.className = 'mt-2 text-sm';
+    gasStatus.textContent = '';
+    gasStatus.className = 'mt-2 text-sm';
+  }
 }
 
 // Update status indicators
@@ -394,6 +412,21 @@ function setupCharts() {
   });
 }
 
+// Reset charts to empty state
+function resetCharts() {
+  temperatureChart.data.labels = [];
+  temperatureChart.data.datasets[0].data = [];
+  temperatureChart.update();
+
+  humidityChart.data.labels = [];
+  humidityChart.data.datasets[0].data = [];
+  humidityChart.update();
+
+  moistureChart.data.labels = [];
+  moistureChart.data.datasets[0].data = [];
+  moistureChart.update();
+}
+
 // Update charts with new data
 function updateCharts() {
   const labels = readings.map(r => new Date(r.created_at).toLocaleTimeString());
@@ -409,6 +442,59 @@ function updateCharts() {
   moistureChart.data.labels = labels;
   moistureChart.data.datasets[0].data = readings.map(r => r.gas_level);
   moistureChart.update();
+}
+
+// Calculate spoilage status based on average readings
+function calculateSpoilageStatus() {
+  // Make sure we have readings to analyze
+  if (readings.length === 0) {
+    showNotification('No readings collected during monitoring');
+    return;
+  }
+  
+  // Calculate averages
+  const avgTemperature = readings.reduce((sum, r) => sum + r.temperature, 0) / readings.length;
+  const avgHumidity = readings.reduce((sum, r) => sum + r.humidity, 0) / readings.length;
+  const avgGasLevel = readings.reduce((sum, r) => sum + r.gas_level, 0) / readings.length;
+  
+  // Count how many values are above their thresholds
+  let thresholdsExceeded = 0;
+  
+  if (avgTemperature > currentThresholds.temperature) thresholdsExceeded++;
+  if (avgHumidity > currentThresholds.humidity) thresholdsExceeded++;
+  if (avgGasLevel > currentThresholds.gas) thresholdsExceeded++;
+  
+  // Get status element
+  const spoilageStatus = document.getElementById('spoilage-status');
+  spoilageStatus.classList.remove('hidden');
+  
+  // Display appropriate message based on thresholds exceeded
+  let statusMessage = '';
+  let statusClass = '';
+  
+  if (thresholdsExceeded === 0) {
+    statusMessage = 'Food is good';
+    statusClass = 'bg-green-100 text-green-800';
+  } else if (thresholdsExceeded === 1) {
+    statusMessage = 'Food started spoiling';
+    statusClass = 'bg-yellow-100 text-yellow-800';
+  } else if (thresholdsExceeded === 2) {
+    statusMessage = 'Food may be spoiled';
+    statusClass = 'bg-orange-100 text-orange-800';
+  } else {
+    statusMessage = 'Food is spoiled';
+    statusClass = 'bg-red-100 text-red-800';
+  }
+  
+  // Update the status display
+  spoilageStatus.className = `p-4 mt-4 rounded-lg ${statusClass}`;
+  spoilageStatus.innerHTML = `
+    <h3 class="font-bold mb-2">Analysis Results:</h3>
+    <div>Average Temperature: ${avgTemperature.toFixed(1)}°C (Threshold: ${currentThresholds.temperature}°C)</div>
+    <div>Average Humidity: ${avgHumidity.toFixed(1)}% (Threshold: ${currentThresholds.humidity}%)</div>
+    <div>Average Gas Level: ${avgGasLevel.toFixed(1)} PPM (Threshold: ${currentThresholds.gas} PPM)</div>
+    <div class="mt-2 font-bold">${statusMessage}</div>
+  `;
 }
 
 // Show notifications
@@ -432,4 +518,15 @@ function showNotification(message) {
 }
 
 // Initialize the dashboard when the page loads
-document.addEventListener('DOMContentLoaded', initDashboard);
+document.addEventListener('DOMContentLoaded', function() {
+  initDashboard();
+  
+  // Make sure we have a spoilage status element in the HTML
+  if (!document.getElementById('spoilage-status')) {
+    const containerDiv = document.querySelector('#readings-container') || document.body;
+    const statusDiv = document.createElement('div');
+    statusDiv.id = 'spoilage-status';
+    statusDiv.className = 'hidden';
+    containerDiv.appendChild(statusDiv);
+  }
+});
