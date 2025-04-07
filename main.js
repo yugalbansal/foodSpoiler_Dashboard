@@ -236,6 +236,7 @@ function setupStartButton() {
 }
 
 // Start monitoring readings
+// Start monitoring readings
 function startMonitoring() {
   readings = [];
   lastReadingTimestamp = null;
@@ -243,9 +244,38 @@ function startMonitoring() {
   monitoringStartTime = new Date(Date.now() - 5000).toISOString();
   
   // Clear any existing readings and status
-  document.getElementById('readings-list').innerHTML = '';
-  document.getElementById('waiting-message').classList.remove('hidden');
-  document.getElementById('spoilage-status').classList.add('hidden');
+  const readingsList = document.getElementById('readings-list');
+  if (readingsList) {
+    readingsList.innerHTML = '';
+  } else {
+    console.error('readings-list element not found');
+  }
+  
+  // Check if waiting-message exists, if not create it
+  let waitingMessage = document.getElementById('waiting-message');
+  if (!waitingMessage) {
+    waitingMessage = document.createElement('div');
+    waitingMessage.id = 'waiting-message';
+    waitingMessage.className = 'p-4 bg-yellow-100 text-yellow-800 rounded-lg mb-2';
+    waitingMessage.textContent = 'Waiting for new readings...';
+    
+    // Append to readings container if it exists
+    const readingsContainer = document.getElementById('readings-container');
+    if (readingsContainer) {
+      readingsContainer.appendChild(waitingMessage);
+    } else {
+      // Fallback to document body
+      document.body.appendChild(waitingMessage);
+    }
+  } else {
+    waitingMessage.classList.remove('hidden');
+  }
+  
+  // Check if spoilage-status exists and hide it
+  const spoilageStatus = document.getElementById('spoilage-status');
+  if (spoilageStatus) {
+    spoilageStatus.classList.add('hidden');
+  }
   
   // Initialize with zero values in the UI but don't add to readings array
   const initialReading = {
@@ -262,9 +292,14 @@ function startMonitoring() {
   resetCharts();
   
   noReadingsTimeout = setTimeout(() => {
-    document.getElementById('waiting-message').classList.add('hidden');
-    document.getElementById('readings-list').innerHTML = 
-      '<div class="text-gray-500">No new readings found</div>';
+    if (waitingMessage) {
+      waitingMessage.classList.add('hidden');
+    }
+    
+    if (readingsList) {
+      readingsList.innerHTML = 
+        '<div class="text-gray-500">No new readings found</div>';
+    }
   }, 120000); // 2 minutes
   
   // Get an initial reading right away
@@ -390,8 +425,125 @@ async function fetchLatestData() {
     }
     showNotification('Error fetching sensor data');
   }
-}
+}// Fetch latest sensor data
+async function fetchLatestData() {
+  console.log('========= FETCH ATTEMPT STARTED =========');
+  try {
+    console.log('Attempting to fetch latest data from Supabase');
+    
+    // Log what we're querying for
+    console.log(`Current time: ${new Date().toISOString()}`);
+    console.log(`Monitoring start time: ${monitoringStartTime}`);
+    
+    // Do a simple select first to test connection
+    const testQuery = await supabase
+      .from('sensor_data')
+      .select('count')
+      .limit(1);
+      
+    console.log('Test query result:', testQuery);
+    
+    if (testQuery.error) {
+      console.error('Test query failed:', testQuery.error);
+      throw new Error('Supabase connection test failed');
+    }
+    
+    // Now try the actual query
+    console.log('Running main query for latest data');
+    const { data, error } = await supabase
+      .from('sensor_data')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1);
 
+    if (error) {
+      console.error('Supabase query error:', error);
+      console.error('Error details:', JSON.stringify(error));
+      throw error;
+    }
+
+    console.log('Query successful, data received:', data);
+
+    if (data && data.length > 0) {
+      const reading = data[0];
+      console.log('Latest reading:', reading);
+      
+      try {
+        const readingTimestamp = new Date(reading.created_at).getTime();
+        console.log(`Parsed timestamp: ${readingTimestamp}, as date: ${new Date(readingTimestamp).toISOString()}`);
+        
+        // Only check if reading is newer than monitoring start time
+        if (new Date(reading.created_at) >= new Date(monitoringStartTime)) {
+          console.log('This is a reading after monitoring started, adding to UI');
+          clearTimeout(noReadingsTimeout);
+          
+          // Safely access waiting-message
+          const waitingMessage = document.getElementById('waiting-message');
+          if (waitingMessage) {
+            waitingMessage.classList.add('hidden');
+            console.log('Hiding waiting message');
+          } else {
+            console.warn('waiting-message element not found');
+          }
+          
+          // Update lastReadingTimestamp for reference but don't use it for filtering
+          lastReadingTimestamp = readingTimestamp;
+          readings.push(reading);
+          
+          try {
+            console.log('Updating dashboard...');
+            updateDashboard(reading, true);
+            console.log('Dashboard updated');
+          } catch (dashboardError) {
+            console.error('Error updating dashboard:', dashboardError);
+          }
+          
+          // Make sure readings-list exists before attempting to add to it
+          const readingsList = document.getElementById('readings-list');
+          if (readingsList) {
+            try {
+              console.log('Adding reading to list...');
+              addReadingToList(reading);
+              console.log('Reading added to list');
+            } catch (listError) {
+              console.error('Error adding reading to list:', listError);
+            }
+          } else {
+            console.error('readings-list element not found');
+          }
+          
+          try {
+            console.log('Updating charts...');
+            updateCharts();
+            console.log('Charts updated');
+          } catch (chartError) {
+            console.error('Error updating charts:', chartError);
+          }
+          
+          console.log('Successfully processed new reading');
+        } else {
+          console.log('Reading is older than monitoring start time - skipping');
+        }
+      } catch (timestampError) {
+        console.error('Error processing timestamp:', timestampError);
+        console.error('Problem reading:', reading);
+      }
+    } else {
+      console.log('No data returned from Supabase or empty array');
+    }
+    
+    console.log('========= FETCH ATTEMPT COMPLETED SUCCESSFULLY =========');
+  } catch (error) {
+    console.error('========= FETCH ATTEMPT FAILED =========');
+    console.error('Error fetching data:', error);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    if (error.stack) {
+      console.error('Error stack:', error.stack);
+    }
+    showNotification('Error fetching sensor data');
+  }
+}
 // Set up date picker for previous readings
 function setupDatePicker() {
   const datePicker = document.getElementById('reading-date');
