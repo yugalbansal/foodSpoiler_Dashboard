@@ -7,7 +7,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Food type thresholds (to be updated with actual values)
+// Food type thresholds
 const foodThresholds = {
   citrus: { temperature: 25, humidity: 70, gas: 1000 },
   berries: { temperature: 25, humidity: 70, gas: 1000 },
@@ -21,6 +21,9 @@ const foodThresholds = {
 let currentThresholds = null;
 let isMonitoring = false;
 let readings = [];
+let monitoringTimeout = null;
+let noReadingsTimeout = null;
+let lastReadingTimestamp = null;
 
 // Chart objects
 let temperatureChart;
@@ -32,6 +35,7 @@ function initDashboard() {
   setupFoodTypeSelector();
   setupStartButton();
   setupCharts();
+  setupDatePicker();
 }
 
 // Set up food type selector
@@ -44,29 +48,21 @@ function setupFoodTypeSelector() {
     const selectedType = e.target.value;
     
     if (selectedType) {
-      // If custom is selected, show custom input fields
       if (selectedType === 'custom') {
         customInputs.classList.remove('hidden');
-        
-        // Populate custom inputs with default values
         document.getElementById('custom-temperature').value = foodThresholds.custom?.temperature || 25;
         document.getElementById('custom-humidity').value = foodThresholds.custom?.humidity || 70;
         document.getElementById('custom-gas').value = foodThresholds.custom?.gas || 1000;
       } else {
         customInputs.classList.add('hidden');
-        
-        // Set current thresholds
         currentThresholds = foodThresholds[selectedType];
         
-        // Update thresholds in Supabase
         try {
-          // First, delete existing thresholds
           await supabase
             .from('thresholds')
             .delete()
-            .neq('id', '0'); // Delete all existing records
+            .neq('id', '0');
           
-          // Insert new thresholds
           const { error } = await supabase
             .from('thresholds')
             .insert([{
@@ -78,7 +74,6 @@ function setupFoodTypeSelector() {
             }]);
           
           if (error) throw error;
-          
           showNotification(`Thresholds updated for ${selectedType}`);
         } catch (error) {
           console.error('Error updating thresholds:', error);
@@ -93,23 +88,19 @@ function setupFoodTypeSelector() {
     }
   });
 
-  // Handle custom input submission
   document.getElementById('custom-submit').addEventListener('click', async () => {
     const temperature = parseFloat(document.getElementById('custom-temperature').value);
     const humidity = parseFloat(document.getElementById('custom-humidity').value);
     const gas = parseFloat(document.getElementById('custom-gas').value);
     
-    // Update custom thresholds
     foodThresholds.custom = { temperature, humidity, gas };
     
     try {
-      // First, delete existing thresholds
       await supabase
         .from('thresholds')
         .delete()
-        .neq('id', '0'); // Delete all existing records
+        .neq('id', '0');
       
-      // Insert new custom thresholds
       const { error } = await supabase
         .from('thresholds')
         .insert([{
@@ -122,19 +113,11 @@ function setupFoodTypeSelector() {
       
       if (error) throw error;
       
-      // Set current thresholds
       currentThresholds = { temperature, humidity, gas };
-      
-      // Hide custom inputs
-      document.getElementById('custom-inputs').classList.add('hidden');
-      
-      // Reset selector to custom
-      document.getElementById('food-type').value = 'custom';
-      
+      customInputs.classList.add('hidden');
+      selector.value = 'custom';
       showNotification('Custom thresholds updated and saved');
-      
-      // Enable start button
-      document.getElementById('start-monitoring').disabled = false;
+      startButton.disabled = false;
     } catch (error) {
       console.error('Error updating custom thresholds:', error);
       showNotification('Failed to update custom thresholds');
@@ -163,22 +146,44 @@ function setupStartButton() {
   });
 }
 
-let monitoringInterval;
-
 // Start monitoring readings
 function startMonitoring() {
-  // Clear existing readings
   readings = [];
+  lastReadingTimestamp = null;
   document.getElementById('readings-list').innerHTML = '';
+  document.getElementById('waiting-message').classList.remove('hidden');
   
-  // Start fetching new readings
-  fetchLatestData(); // Fetch immediately
-  monitoringInterval = setInterval(fetchLatestData, 5000); // Then every 5 seconds
+  // Initialize with zero values
+  const initialReading = {
+    temperature: 0,
+    humidity: 0,
+    gas_level: 0,
+    created_at: new Date().toISOString()
+  };
+  
+  // Update UI with initial zero values
+  updateDashboard(initialReading);
+  addReadingToList(initialReading);
+  readings.push(initialReading);
+  updateCharts();
+  
+  noReadingsTimeout = setTimeout(() => {
+    if (readings.length === 1) { // Only initial reading
+      document.getElementById('waiting-message').classList.add('hidden');
+      document.getElementById('readings-list').innerHTML = 
+        '<div class="text-gray-500">No readings updated on database</div>';
+    }
+  }, 120000); // 2 minutes
+  
+  fetchLatestData();
+  monitoringTimeout = setInterval(fetchLatestData, 5000);
 }
 
 // Stop monitoring readings
 function stopMonitoring() {
-  clearInterval(monitoringInterval);
+  clearInterval(monitoringTimeout);
+  clearTimeout(noReadingsTimeout);
+  document.getElementById('waiting-message').classList.add('hidden');
 }
 
 // Fetch latest sensor data
@@ -194,14 +199,83 @@ async function fetchLatestData() {
 
     if (data && data.length > 0) {
       const reading = data[0];
-      readings.push(reading);
-      updateDashboard(reading);
-      addReadingToList(reading);
-      updateCharts();
+      const readingTimestamp = new Date(reading.created_at).getTime();
+      
+      if (!lastReadingTimestamp || readingTimestamp > lastReadingTimestamp) {
+        clearTimeout(noReadingsTimeout);
+        document.getElementById('waiting-message').classList.add('hidden');
+        
+        lastReadingTimestamp = readingTimestamp;
+        readings.push(reading);
+        updateDashboard(reading);
+        addReadingToList(reading);
+        updateCharts();
+      }
     }
   } catch (error) {
     console.error('Error fetching data:', error);
     showNotification('Error fetching sensor data');
+  }
+}
+
+// Set up date picker for previous readings
+function setupDatePicker() {
+  const datePicker = document.getElementById('reading-date');
+  datePicker.valueAsDate = new Date();
+  
+  datePicker.addEventListener('change', () => {
+    fetchPreviousReadings(datePicker.value);
+  });
+  
+  fetchPreviousReadings(datePicker.value);
+}
+
+// Fetch previous readings for a specific date
+async function fetchPreviousReadings(date) {
+  try {
+    const startDate = new Date(date);
+    startDate.setHours(0, 0, 0, 0);
+    
+    const endDate = new Date(date);
+    endDate.setHours(23, 59, 59, 999);
+    
+    const { data, error } = await supabase
+      .from('sensor_data')
+      .select('*')
+      .gte('created_at', startDate.toISOString())
+      .lte('created_at', endDate.toISOString())
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const previousReadingsList = document.getElementById('previous-readings-list');
+    previousReadingsList.innerHTML = '';
+
+    if (data && data.length > 0) {
+      data.forEach(reading => {
+        const readingElement = document.createElement('div');
+        readingElement.className = 'p-4 bg-gray-50 rounded-lg';
+        
+        const time = new Date(reading.created_at).toLocaleTimeString();
+        readingElement.innerHTML = `
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-gray-500">${time}</span>
+            <div class="space-x-4">
+              <span class="text-blue-600">${reading.temperature}°C</span>
+              <span class="text-green-600">${reading.humidity}%</span>
+              <span class="text-purple-600">${reading.gas_level} PPM</span>
+            </div>
+          </div>
+        `;
+        
+        previousReadingsList.appendChild(readingElement);
+      });
+    } else {
+      previousReadingsList.innerHTML = '<div class="text-gray-500">No readings found for this date</div>';
+    }
+  } catch (error) {
+    console.error('Error fetching previous readings:', error);
+    showNotification('Error fetching previous readings');
   }
 }
 
@@ -225,7 +299,6 @@ function addReadingToList(reading) {
   
   readingsList.insertBefore(readingElement, readingsList.firstChild);
   
-  // Keep only the last 10 readings in the list
   if (readingsList.children.length > 10) {
     readingsList.removeChild(readingsList.lastChild);
   }
@@ -233,19 +306,16 @@ function addReadingToList(reading) {
 
 // Update dashboard with new values
 function updateDashboard(data) {
-  // Update temperature
   const tempElement = document.getElementById('temperature-value');
   const tempStatus = document.getElementById('temperature-status');
   tempElement.textContent = `${data.temperature}°C`;
   updateStatus(tempStatus, data.temperature, currentThresholds.temperature, 'Temperature');
 
-  // Update humidity
   const humidityElement = document.getElementById('humidity-value');
   const humidityStatus = document.getElementById('humidity-status');
   humidityElement.textContent = `${data.humidity}%`;
   updateStatus(humidityStatus, data.humidity, currentThresholds.humidity, 'Humidity');
 
-  // Update gas levels
   const gasElement = document.getElementById('gas-value');
   const gasStatus = document.getElementById('gas-status');
   gasElement.textContent = `${data.gas_level} PPM`;
@@ -271,7 +341,7 @@ function setupCharts() {
     maintainAspectRatio: false,
     scales: {
       y: {
-        beginAtZero: false,
+        beginAtZero: true,
       }
     },
     plugins: {
@@ -281,7 +351,6 @@ function setupCharts() {
     }
   };
 
-  // Initialize empty charts
   temperatureChart = new Chart(document.getElementById('temperatureChart'), {
     type: 'line',
     data: {
@@ -344,7 +413,6 @@ function updateCharts() {
 
 // Show notifications
 function showNotification(message) {
-  // Create notification area if it doesn't exist
   let notificationArea = document.getElementById('notification-area');
   if (!notificationArea) {
     notificationArea = document.createElement('div');
@@ -365,4 +433,3 @@ function showNotification(message) {
 
 // Initialize the dashboard when the page loads
 document.addEventListener('DOMContentLoaded', initDashboard);
-

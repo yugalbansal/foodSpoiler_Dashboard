@@ -16,61 +16,6 @@
 
       <!-- Main Dashboard -->
       <main class="container mx-auto px-4 py-8">
-        <!-- Food Type Selection and Start Button -->
-        <!-- <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Select Food Type</label>
-              <select id="food-type" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200">
-                <option value="">Select a food type...</option>
-                <optgroup label="Fruits">
-                  <option value="citrus">Citrus Fruits (oranges, lemons, limes)</option>
-                  <option value="berries">Berries (strawberries, blueberries, raspberries)</option>
-                  <option value="stone">Stone Fruits (peaches, plums, nectarines)</option>
-                  <option value="tropical">Tropical Fruits (bananas, avocados, mangos)</option>
-                  <option value="temperate">Apples/Pears (temperate fruits)</option>
-                </optgroup>
-                <optgroup label="Vegetables">
-                  <option value="leafy">Leafy Greens (lettuce, spinach, kale)</option>
-                  <option value="root">Root Vegetables (carrots, beets, potatoes)</option>
-                </optgroup>
-                <optgroup>
-                  <optgroup label="custom-Values"></label>
-                  <option value="custom">Custom</option>
-                </optgroup>
-              </select>
-            </div>
-            
-            <div id="custom-inputs" class="hidden flex items-center gap-3">
-              Labels
-              <div class="flex flex-col gap-1 text-gray-600 text-sm font-medium">
-                <label for="custom-temperature">Temperature</label>
-                <label for="custom-humidity">Humidity</label>
-                <label for="custom-gas">Gas Level</label>
-              </div>
-            
-              Inputs
-              <div class="flex flex-col gap-1">
-                <input type="number" id="custom-temperature" placeholder="Temperature" required class="bg-gray-100 p-1 rounded-md w-24 text-right">
-                <input type="number" id="custom-humidity" placeholder="Humidity" required class="bg-gray-100 p-1 rounded-md w-24 text-right">
-                <input type="number" id="custom-gas" placeholder="Gas Level" required class="bg-gray-100 p-1 rounded-md w-24 text-right">
-                <button id="custom-submit" class="text-blue-600 text-sm cursor-pointer hover:underline mt-1">Set Custom Thresholds</button>
-              </div>
-            </div>
-            
-            
-            <div>
-              <button 
-                id="start-monitoring" 
-                class="w-full bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled
-              >
-                Start Monitoring
-              </button>
-            </div>
-          </div>
-        </div> -->
-
         <div class="bg-white rounded-lg shadow-md p-4 mb-4">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
             <div>
@@ -123,7 +68,6 @@
             </div>
           </div>
         </div>
-        
 
         <!-- Sensor Cards --> 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -149,27 +93,54 @@
           </div>
         </div>
 
-        <!-- Readings List -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 class="text-xl font-semibold text-gray-700 mb-4">Recent Readings</h2>
-          <div id="readings-list" class="space-y-4">
-            <!-- Readings will be inserted here -->
+        <!-- Recent and Previous Readings -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Recent Readings -->
+          <div class="bg-white rounded-lg shadow-md p-6">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-xl font-semibold text-gray-700">Recent Readings</h2>
+              <div id="waiting-message" class="text-sm text-gray-500 hidden">
+                Waiting for new readings...
+              </div>
+            </div>
+            <div id="readings-list" class="space-y-4">
+              <!-- Readings will be inserted here -->
+            </div>
           </div>
+
+          <!-- Previous Readings -->
         </div>
 
         <!-- Chart Section -->
-        <div class="chart-container bg-white shadow rounded-lg p-4 mb-4">
-          <canvas id="temperatureChart"></canvas>
-        </div>
+        <div class="mt-8">
+          <div class="chart-container bg-white shadow rounded-lg p-4 mb-4">
+            <canvas id="temperatureChart"></canvas>
+          </div>
 
-        <div class="chart-container bg-white shadow rounded-lg p-4 mb-4">
-          <canvas id="humidityChart"></canvas>
-        </div>
+          <div class="chart-container bg-white shadow rounded-lg p-4 mb-4">
+            <canvas id="humidityChart"></canvas>
+          </div>
 
-        <div class="chart-container bg-white shadow rounded-lg p-4 mb-4">
-          <canvas id="moistureChart"></canvas>
+          <div class="chart-container bg-white shadow rounded-lg p-4 mb-4">
+            <canvas id="moistureChart"></canvas>
+          </div>
         </div>
       </main>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6"></div>
+    <div class="bg-white rounded-lg shadow-md p-6">
+      <h2 class="text-xl font-semibold text-gray-700 mb-4">Previous Readings</h2>
+      <div class="mb-4">
+        <input 
+          type="date" 
+          id="reading-date" 
+          class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200"
+        >
+      </div>
+      <div id="previous-readings-list" class="space-y-4">
+        <!-- Previous readings will be inserted here -->
+      </div>
+      </div>
     </div>
     <script type="module" src="/main.js"></script>
   </body>
