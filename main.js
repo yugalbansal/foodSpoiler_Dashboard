@@ -287,7 +287,7 @@ async function fetchLatestData() {
     
     // Log what we're querying for
     console.log(`Current time: ${new Date().toISOString()}`);
-    console.log(`Last reading timestamp: ${lastReadingTimestamp ? new Date(lastReadingTimestamp).toISOString() : 'none'}`);
+    console.log(`Monitoring start time: ${monitoringStartTime}`);
     
     // Do a simple select first to test connection
     const testQuery = await supabase
@@ -326,8 +326,9 @@ async function fetchLatestData() {
         const readingTimestamp = new Date(reading.created_at).getTime();
         console.log(`Parsed timestamp: ${readingTimestamp}, as date: ${new Date(readingTimestamp).toISOString()}`);
         
-        if (!lastReadingTimestamp || readingTimestamp > lastReadingTimestamp) {
-          console.log('This is a new reading, adding to UI');
+        // Only check if reading is newer than monitoring start time
+        if (new Date(reading.created_at) >= new Date(monitoringStartTime)) {
+          console.log('This is a reading after monitoring started, adding to UI');
           clearTimeout(noReadingsTimeout);
           
           const waitingMessage = document.getElementById('waiting-message');
@@ -338,6 +339,7 @@ async function fetchLatestData() {
             console.warn('waiting-message element not found');
           }
           
+          // Update lastReadingTimestamp for reference but don't use it for filtering
           lastReadingTimestamp = readingTimestamp;
           readings.push(reading);
           
@@ -367,7 +369,7 @@ async function fetchLatestData() {
           
           console.log('Successfully processed new reading');
         } else {
-          console.log('Reading is not newer than last reading - skipping');
+          console.log('Reading is older than monitoring start time - skipping');
         }
       } catch (timestampError) {
         console.error('Error processing timestamp:', timestampError);
