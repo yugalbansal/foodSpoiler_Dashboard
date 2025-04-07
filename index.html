@@ -93,13 +93,13 @@
           </div>
         </div>
 
-        <!-- Recent Readings -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Recent and Previous Readings -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <!-- Recent Readings -->
-          <div class="bg-white rounded-2xl shadow-md p-6 sm:p-8">
-            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
-              <h2 class="text-xl sm:text-2xl font-semibold text-gray-700">Recent Readings</h2>
-              <div id="waiting-message" class="text-sm text-gray-500 hidden sm:text-base">
+          <div class="bg-white rounded-lg shadow-md p-6">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-xl font-semibold text-gray-700">Recent Readings</h2>
+              <div id="waiting-message" class="text-sm text-gray-500 hidden">
                 Waiting for new readings...
               </div>
             </div>
@@ -107,10 +107,23 @@
               <!-- Readings will be inserted here -->
             </div>
           </div>
-        </div>
-        
 
-         
+          <!-- Previous Readings -->
+          <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Previous Readings</h2>
+            <div class="mb-4">
+              <input 
+                type="date" 
+                id="reading-date" 
+                class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200"
+              >
+            </div>
+            <div id="previous-readings-list" class="space-y-4">
+              <!-- Previous readings will be inserted here -->
+            </div>
+          </div>
+        </div>
+
         <!-- Chart Section -->
         <div class="mt-8">
           <div class="chart-container bg-white shadow rounded-lg p-4 mb-4">
@@ -127,25 +140,6 @@
         </div>
       </main>
     </div>
-    <div class="bg-white rounded-2xl shadow-md p-6 max-w-xl w-full mx-auto sm:p-8">
-      <h2 class="text-xl sm:text-2xl font-semibold text-gray-700 mb-4">Previous Readings</h2>
-      
-      <div class="mb-4">
-        <label for="reading-date" class="block text-sm font-medium text-gray-600 mb-1">
-          Select Date
-        </label>
-        <input 
-          type="date" 
-          id="reading-date" 
-          class="w-full rounded-lg border border-gray-300 px-4 py-2 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 transition"
-        >
-      </div>
-      
-      <div id="previous-readings-list" class="space-y-4">
-        <!-- Previous readings will be inserted here -->
-      </div>
-    </div>
-    
     <script type="module" src="/main.js"></script>
   </body>
 </html>
