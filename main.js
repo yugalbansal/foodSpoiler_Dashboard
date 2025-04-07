@@ -37,6 +37,85 @@ function initDashboard() {
   setupStartButton();
   setupCharts();
   setupDatePicker();
+  setupMinimizeButtons();
+}
+
+// Set up minimize buttons
+function setupMinimizeButtons() {
+  const recentContainer = document.getElementById('recent-readings-container');
+  const previousContainer = document.getElementById('previous-readings-container');
+  
+  // Create minimize button for recent readings
+  const recentMinimizeBtn = document.createElement('button');
+  recentMinimizeBtn.innerHTML = '▼ Minimize';
+  recentMinimizeBtn.className = 'px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm ml-2';
+  
+  // Get or create header for recent readings
+  let recentHeader = document.querySelector('#recent-readings-container .flex');
+  if (!recentHeader) {
+    recentHeader = document.createElement('div');
+    recentHeader.className = 'flex justify-between items-center mb-2';
+    const title = document.createElement('h3');
+    title.className = 'text-lg font-bold';
+    title.textContent = 'Recent Readings';
+    recentHeader.appendChild(title);
+    
+    if (recentContainer.firstChild) {
+      recentContainer.insertBefore(recentHeader, recentContainer.firstChild);
+    } else {
+      recentContainer.appendChild(recentHeader);
+    }
+  }
+  
+  recentHeader.appendChild(recentMinimizeBtn);
+  
+  // Create minimize button for previous readings
+  const previousMinimizeBtn = document.createElement('button');
+  previousMinimizeBtn.innerHTML = '▼ Minimize';
+  previousMinimizeBtn.className = 'px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm ml-2';
+  
+  // Get or create header for previous readings
+  let previousHeader = document.querySelector('#previous-readings-container .flex');
+  if (!previousHeader) {
+    previousHeader = document.createElement('div');
+    previousHeader.className = 'flex justify-between items-center mb-2';
+    const title = document.createElement('h3');
+    title.className = 'text-lg font-bold';
+    title.textContent = 'Previous Readings';
+    previousHeader.appendChild(title);
+    
+    if (previousContainer.firstChild) {
+      previousContainer.insertBefore(previousHeader, previousContainer.firstChild);
+    } else {
+      previousContainer.appendChild(previousHeader);
+    }
+  }
+  
+  previousHeader.appendChild(previousMinimizeBtn);
+  
+  // Set up event listeners for the minimize buttons
+  const recentReadingsList = document.getElementById('readings-list');
+  const previousReadingsList = document.getElementById('previous-readings-list');
+  
+  recentMinimizeBtn.addEventListener('click', () => {
+    if (recentReadingsList.classList.contains('hidden')) {
+      recentReadingsList.classList.remove('hidden');
+      recentMinimizeBtn.innerHTML = '▼ Minimize';
+    } else {
+      recentReadingsList.classList.add('hidden');
+      recentMinimizeBtn.innerHTML = '▲ Expand';
+    }
+  });
+  
+  previousMinimizeBtn.addEventListener('click', () => {
+    if (previousReadingsList.classList.contains('hidden')) {
+      previousReadingsList.classList.remove('hidden');
+      previousMinimizeBtn.innerHTML = '▼ Minimize';
+    } else {
+      previousReadingsList.classList.add('hidden');
+      previousMinimizeBtn.innerHTML = '▲ Expand';
+    }
+  });
 }
 
 // Set up food type selector
@@ -136,6 +215,13 @@ function setupStartButton() {
       startButton.textContent = 'Stop Monitoring';
       startButton.classList.replace('bg-blue-500', 'bg-red-500');
       startButton.classList.replace('hover:bg-blue-600', 'hover:bg-red-600');
+      
+      // Hide any existing spoilage status when starting monitoring
+      const spoilageStatus = document.getElementById('spoilage-status');
+      if (spoilageStatus) {
+        spoilageStatus.classList.add('hidden');
+      }
+      
       startMonitoring();
     } else {
       isMonitoring = false;
@@ -185,6 +271,7 @@ function startMonitoring() {
   fetchLatestData();
   monitoringTimeout = setInterval(fetchLatestData, 5000);
 }
+
 // Stop monitoring readings
 function stopMonitoring() {
   clearInterval(monitoringTimeout);
@@ -193,42 +280,112 @@ function stopMonitoring() {
 }
 
 // Fetch latest sensor data
-// Fetch latest sensor data
 async function fetchLatestData() {
+  console.log('========= FETCH ATTEMPT STARTED =========');
   try {
-    // Get the most recent reading regardless of when monitoring started
+    console.log('Attempting to fetch latest data from Supabase');
+    
+    // Log what we're querying for
+    console.log(`Current time: ${new Date().toISOString()}`);
+    console.log(`Last reading timestamp: ${lastReadingTimestamp ? new Date(lastReadingTimestamp).toISOString() : 'none'}`);
+    
+    // Do a simple select first to test connection
+    const testQuery = await supabase
+      .from('sensor_data')
+      .select('count')
+      .limit(1);
+      
+    console.log('Test query result:', testQuery);
+    
+    if (testQuery.error) {
+      console.error('Test query failed:', testQuery.error);
+      throw new Error('Supabase connection test failed');
+    }
+    
+    // Now try the actual query
+    console.log('Running main query for latest data');
     const { data, error } = await supabase
       .from('sensor_data')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(1);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase query error:', error);
+      console.error('Error details:', JSON.stringify(error));
+      throw error;
+    }
+
+    console.log('Query successful, data received:', data);
 
     if (data && data.length > 0) {
       const reading = data[0];
+      console.log('Latest reading:', reading);
       
-      // Ensure we're correctly parsing the timestamp with microsecond precision
-      const readingTimestamp = new Date(reading.created_at).getTime();
-      
-      // Either we don't have a previous reading or this is newer
-      if (!lastReadingTimestamp || readingTimestamp > lastReadingTimestamp) {
-        clearTimeout(noReadingsTimeout);
-        document.getElementById('waiting-message').classList.add('hidden');
+      try {
+        const readingTimestamp = new Date(reading.created_at).getTime();
+        console.log(`Parsed timestamp: ${readingTimestamp}, as date: ${new Date(readingTimestamp).toISOString()}`);
         
-        console.log(`New reading found: ${reading.created_at}`);
-        lastReadingTimestamp = readingTimestamp;
-        readings.push(reading);
-        updateDashboard(reading, true);
-        addReadingToList(reading);
-        updateCharts();
-      } else {
-        console.log(`Skipping duplicate reading: ${reading.created_at}`);
+        if (!lastReadingTimestamp || readingTimestamp > lastReadingTimestamp) {
+          console.log('This is a new reading, adding to UI');
+          clearTimeout(noReadingsTimeout);
+          
+          const waitingMessage = document.getElementById('waiting-message');
+          if (waitingMessage) {
+            waitingMessage.classList.add('hidden');
+            console.log('Hiding waiting message');
+          } else {
+            console.warn('waiting-message element not found');
+          }
+          
+          lastReadingTimestamp = readingTimestamp;
+          readings.push(reading);
+          
+          try {
+            console.log('Updating dashboard...');
+            updateDashboard(reading, true);
+            console.log('Dashboard updated');
+          } catch (dashboardError) {
+            console.error('Error updating dashboard:', dashboardError);
+          }
+          
+          try {
+            console.log('Adding reading to list...');
+            addReadingToList(reading);
+            console.log('Reading added to list');
+          } catch (listError) {
+            console.error('Error adding reading to list:', listError);
+          }
+          
+          try {
+            console.log('Updating charts...');
+            updateCharts();
+            console.log('Charts updated');
+          } catch (chartError) {
+            console.error('Error updating charts:', chartError);
+          }
+          
+          console.log('Successfully processed new reading');
+        } else {
+          console.log('Reading is not newer than last reading - skipping');
+        }
+      } catch (timestampError) {
+        console.error('Error processing timestamp:', timestampError);
+        console.error('Problem reading:', reading);
       }
+    } else {
+      console.log('No data returned from Supabase or empty array');
     }
+    
+    console.log('========= FETCH ATTEMPT COMPLETED SUCCESSFULLY =========');
   } catch (error) {
+    console.error('========= FETCH ATTEMPT FAILED =========');
     console.error('Error fetching data:', error);
-    console.error('Full error object:', JSON.stringify(error, null, 2));
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    if (error.stack) {
+      console.error('Error stack:', error.stack);
+    }
     showNotification('Error fetching sensor data');
   }
 }
@@ -294,7 +451,6 @@ async function fetchPreviousReadings(date) {
   }
 }
 
-// Add a new reading to the list
 // Add a new reading to the list
 function addReadingToList(reading) {
   try {
@@ -469,7 +625,7 @@ function updateCharts() {
 }
 
 // Calculate spoilage status based on average readings
-function calculateSpoilageStatus() {
+async function calculateSpoilageStatus() {
   // Make sure we have readings to analyze
   if (readings.length === 0) {
     showNotification('No readings collected during monitoring');
@@ -510,8 +666,16 @@ function calculateSpoilageStatus() {
     statusClass = 'bg-red-100 text-red-800';
   }
   
-  // Update the status display
-  spoilageStatus.className = `p-4 mt-4 rounded-lg ${statusClass}`;
+  // Update the status display - Move it above the readings
+  const readingsContainer = document.getElementById('readings-container');
+  const recentReadingsContainer = document.getElementById('recent-readings-container');
+  
+  // Position before recent readings container
+  if (recentReadingsContainer && spoilageStatus.parentNode === readingsContainer) {
+    readingsContainer.insertBefore(spoilageStatus, recentReadingsContainer);
+  }
+  
+  spoilageStatus.className = `p-4 mt-4 mb-4 rounded-lg ${statusClass}`;
   spoilageStatus.innerHTML = `
     <h3 class="font-bold mb-2">Analysis Results:</h3>
     <div>Average Temperature: ${avgTemperature.toFixed(1)}°C (Threshold: ${currentThresholds.temperature}°C)</div>
@@ -519,6 +683,42 @@ function calculateSpoilageStatus() {
     <div>Average Gas Level: ${avgGasLevel.toFixed(1)} PPM (Threshold: ${currentThresholds.gas} PPM)</div>
     <div class="mt-2 font-bold">${statusMessage}</div>
   `;
+  
+  // Send spoilage status to Supabase
+  try {
+    const { error } = await supabase
+      .from('spoilage_status')
+      .delete()
+      .neq('id', '0');
+      
+    if (error) {
+      console.error("Error clearing previous spoilage status:", error);
+    }
+    
+    const { error: insertError } = await supabase
+      .from('spoilage_status')
+      .insert([{
+        status_message: statusMessage,
+        avg_temperature: avgTemperature,
+        avg_humidity: avgHumidity,
+        avg_gas_level: avgGasLevel,
+        temperature_threshold: currentThresholds.temperature,
+        humidity_threshold: currentThresholds.humidity,
+        gas_threshold: currentThresholds.gas,
+        created_at: new Date().toISOString()
+      }]);
+      
+    if (insertError) {
+      console.error("Error saving spoilage status:", insertError);
+      showNotification("Failed to save spoilage status to server");
+    } else {
+      console.log("Spoilage status saved successfully");
+      showNotification("Spoilage status saved and sent to device");
+    }
+  } catch (error) {
+    console.error("Exception saving spoilage status:", error);
+    showNotification("Error communicating with server");
+  }
 }
 
 // Show notifications
