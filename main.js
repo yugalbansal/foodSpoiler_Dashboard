@@ -347,32 +347,72 @@ async function fetchPreviousReadings(date) {
 }
 
   // Add a new reading to the list
-  function addReadingToList(reading) {
-    const readingsList = document.getElementById('readings-list');
-    const readingElement = document.createElement('div');
-    readingElement.className = 'p-4 bg-gray-50 rounded-lg';
+  // function addReadingToList(reading) {
+  //   const readingsList = document.getElementById('readings-list');
+  //   const readingElement = document.createElement('div');
+  //   readingElement.className = 'p-4 bg-gray-50 rounded-lg';
     
-    const time = new Date(reading.created_at).toLocaleTimeString();
-    readingElement.innerHTML = `
-      <div class="flex justify-between items-center">
-        <span class="text-sm text-gray-500">${time}</span>
-        <div class="space-x-4">
-          <span class="text-blue-600">${reading.temperature}°C</span>
-          <span class="text-green-600">${reading.humidity}%</span>
-          <span class="text-purple-600">${reading.gas_level} PPM</span>
-        </div>
-      </div>
-    `;
+  //   const time = new Date(reading.created_at).toLocaleTimeString();
+  //   readingElement.innerHTML = `
+  //     <div class="flex justify-between items-center">
+  //       <span class="text-sm text-gray-500">${time}</span>
+  //       <div class="space-x-4">
+  //         <span class="text-blue-600">${reading.temperature}°C</span>
+  //         <span class="text-green-600">${reading.humidity}%</span>
+  //         <span class="text-purple-600">${reading.gas_level} PPM</span>
+  //       </div>
+  //     </div>
+  //   `;
     
-    readingsList.insertBefore(readingElement, readingsList.firstChild);
+  //   readingsList.insertBefore(readingElement, readingsList.firstChild);
     
-    if (readingsList.children.length > 10) {
-      readingsList.removeChild(readingsList.lastChild);
-    }
-  }
+  //   if (readingsList.children.length > 10) {
+  //     readingsList.removeChild(readingsList.lastChild);
+  //   }
+  // }
 
 // Update dashboard with new values
-function updateDashboard(data, updateStatus = true) {
+// function updateDashboard(data, updateStatus = true) {
+//   const tempElement = document.getElementById('temperature-value');
+//   const tempStatus = document.getElementById('temperature-status');
+//   tempElement.textContent = `${data.temperature}°C`;
+  
+//   const humidityElement = document.getElementById('humidity-value');
+//   const humidityStatus = document.getElementById('humidity-status');
+//   humidityElement.textContent = `${data.humidity}%`;
+  
+//   const gasElement = document.getElementById('gas-value');
+//   const gasStatus = document.getElementById('gas-status');
+//   gasElement.textContent = `${data.gas_level} PPM`;
+  
+//   if (updateStatus && currentThresholds) {
+//     updateStatus(tempStatus, data.temperature, currentThresholds.temperature, 'Temperature');
+//     updateStatus(humidityStatus, data.humidity, currentThresholds.humidity, 'Humidity');
+//     updateStatus(gasStatus, data.gas_level, currentThresholds.gas, 'Gas level');
+//   } else {
+//     // Clear status indicators
+//     tempStatus.textContent = '';
+//     tempStatus.className = 'mt-2 text-sm';
+//     humidityStatus.textContent = '';
+//     humidityStatus.className = 'mt-2 text-sm';
+//     gasStatus.textContent = '';
+//     gasStatus.className = 'mt-2 text-sm';
+//   }
+// }
+
+// // Update status indicators
+// function updateStatus(element, value, threshold, sensorType) {
+//   if (value > threshold) {
+//     element.textContent = `⚠️ ${sensorType} above threshold!`;
+//     element.className = 'mt-2 text-sm text-red-600';
+//     showNotification(`Warning: ${sensorType} above threshold!`);
+//   } else {
+//     element.textContent = 'Normal';
+//     element.className = 'mt-2 text-sm text-green-600';
+//   }
+// }
+// Update dashboard with new values
+function updateDashboard(data, updateStatusIndicators = true) {
   const tempElement = document.getElementById('temperature-value');
   const tempStatus = document.getElementById('temperature-status');
   tempElement.textContent = `${data.temperature}°C`;
@@ -385,10 +425,11 @@ function updateDashboard(data, updateStatus = true) {
   const gasStatus = document.getElementById('gas-status');
   gasElement.textContent = `${data.gas_level} PPM`;
   
-  if (updateStatus && currentThresholds) {
-    updateStatus(tempStatus, data.temperature, currentThresholds.temperature, 'Temperature');
-    updateStatus(humidityStatus, data.humidity, currentThresholds.humidity, 'Humidity');
-    updateStatus(gasStatus, data.gas_level, currentThresholds.gas, 'Gas level');
+  if (updateStatusIndicators && currentThresholds) {
+    // Call updateSensorStatus instead of updateStatus
+    updateSensorStatus(tempStatus, data.temperature, currentThresholds.temperature, 'Temperature');
+    updateSensorStatus(humidityStatus, data.humidity, currentThresholds.humidity, 'Humidity');
+    updateSensorStatus(gasStatus, data.gas_level, currentThresholds.gas, 'Gas level');
   } else {
     // Clear status indicators
     tempStatus.textContent = '';
@@ -400,8 +441,8 @@ function updateDashboard(data, updateStatus = true) {
   }
 }
 
-// Update status indicators
-function updateStatus(element, value, threshold, sensorType) {
+// Update status indicators - rename this function to updateSensorStatus
+function updateSensorStatus(element, value, threshold, sensorType) {
   if (value > threshold) {
     element.textContent = `⚠️ ${sensorType} above threshold!`;
     element.className = 'mt-2 text-sm text-red-600';
