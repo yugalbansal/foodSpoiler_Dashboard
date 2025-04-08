@@ -37,85 +37,6 @@ function initDashboard() {
   setupStartButton();
   setupCharts();
   setupDatePicker();
-  setupMinimizeButtons();
-}
-
-// Set up minimize buttons
-function setupMinimizeButtons() {
-  const recentContainer = document.getElementById('recent-readings-container');
-  const previousContainer = document.getElementById('previous-readings-container');
-  
-  // Create minimize button for recent readings
-  const recentMinimizeBtn = document.createElement('button');
-  recentMinimizeBtn.innerHTML = '▼ Minimize';
-  recentMinimizeBtn.className = 'px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm ml-2';
-  
-  // Get or create header for recent readings
-  let recentHeader = document.querySelector('#recent-readings-container .flex');
-  if (!recentHeader) {
-    recentHeader = document.createElement('div');
-    recentHeader.className = 'flex justify-between items-center mb-2';
-    const title = document.createElement('h3');
-    title.className = 'text-lg font-bold';
-    title.textContent = 'Recent Readings';
-    recentHeader.appendChild(title);
-    
-    if (recentContainer.firstChild) {
-      recentContainer.insertBefore(recentHeader, recentContainer.firstChild);
-    } else {
-      recentContainer.appendChild(recentHeader);
-    }
-  }
-  
-  recentHeader.appendChild(recentMinimizeBtn);
-  
-  // Create minimize button for previous readings
-  const previousMinimizeBtn = document.createElement('button');
-  previousMinimizeBtn.innerHTML = '▼ Minimize';
-  previousMinimizeBtn.className = 'px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm ml-2';
-  
-  // Get or create header for previous readings
-  let previousHeader = document.querySelector('#previous-readings-container .flex');
-  if (!previousHeader) {
-    previousHeader = document.createElement('div');
-    previousHeader.className = 'flex justify-between items-center mb-2';
-    const title = document.createElement('h3');
-    title.className = 'text-lg font-bold';
-    title.textContent = 'Previous Readings';
-    previousHeader.appendChild(title);
-    
-    if (previousContainer.firstChild) {
-      previousContainer.insertBefore(previousHeader, previousContainer.firstChild);
-    } else {
-      previousContainer.appendChild(previousHeader);
-    }
-  }
-  
-  previousHeader.appendChild(previousMinimizeBtn);
-  
-  // Set up event listeners for the minimize buttons
-  const recentReadingsList = document.getElementById('readings-list');
-  const previousReadingsList = document.getElementById('previous-readings-list');
-  
-  recentMinimizeBtn.addEventListener('click', () => {
-    if (recentReadingsList.classList.contains('hidden')) {
-      recentReadingsList.classList.remove('hidden');
-      recentMinimizeBtn.innerHTML = '▼ Minimize';
-    } else {
-      recentReadingsList.classList.add('hidden');
-      recentMinimizeBtn.innerHTML = '▲ Expand';
-    }
-  });
-  
-  previousMinimizeBtn.addEventListener('click', () => {
-    if (previousReadingsList.classList.contains('hidden')) {
-      previousReadingsList.classList.remove('hidden');
-      previousMinimizeBtn.innerHTML = '▼ Minimize';
-    } else {
-      previousReadingsList.classList.add('hidden');
-      previousMinimizeBtn.innerHTML = '▲ Expand';
-    }
-  });
 }
 
 // Set up food type selector
@@ -215,13 +136,6 @@ function setupStartButton() {
       startButton.textContent = 'Stop Monitoring';
       startButton.classList.replace('bg-blue-500', 'bg-red-500');
       startButton.classList.replace('hover:bg-blue-600', 'hover:bg-red-600');
-      
-      // Hide any existing spoilage status when starting monitoring
-      const spoilageStatus = document.getElementById('spoilage-status');
-      if (spoilageStatus) {
-        spoilageStatus.classList.add('hidden');
-      }
-      
       startMonitoring();
     } else {
       isMonitoring = false;
@@ -236,46 +150,15 @@ function setupStartButton() {
 }
 
 // Start monitoring readings
-// Start monitoring readings
 function startMonitoring() {
   readings = [];
   lastReadingTimestamp = null;
-  // Use a timestamp slightly before now to make sure we don't miss any readings
-  monitoringStartTime = new Date(Date.now() - 5000).toISOString();
+  monitoringStartTime = new Date().toISOString();
   
   // Clear any existing readings and status
-  const readingsList = document.getElementById('readings-list');
-  if (readingsList) {
-    readingsList.innerHTML = '';
-  } else {
-    console.error('readings-list element not found');
-  }
-  
-  // Check if waiting-message exists, if not create it
-  let waitingMessage = document.getElementById('waiting-message');
-  if (!waitingMessage) {
-    waitingMessage = document.createElement('div');
-    waitingMessage.id = 'waiting-message';
-    waitingMessage.className = 'p-4 bg-yellow-100 text-yellow-800 rounded-lg mb-2';
-    waitingMessage.textContent = 'Waiting for new readings...';
-    
-    // Append to readings container if it exists
-    const readingsContainer = document.getElementById('readings-container');
-    if (readingsContainer) {
-      readingsContainer.appendChild(waitingMessage);
-    } else {
-      // Fallback to document body
-      document.body.appendChild(waitingMessage);
-    }
-  } else {
-    waitingMessage.classList.remove('hidden');
-  }
-  
-  // Check if spoilage-status exists and hide it
-  const spoilageStatus = document.getElementById('spoilage-status');
-  if (spoilageStatus) {
-    spoilageStatus.classList.add('hidden');
-  }
+  document.getElementById('readings-list').innerHTML = '';
+  document.getElementById('waiting-message').classList.remove('hidden');
+  document.getElementById('spoilage-status').classList.add('hidden');
   
   // Initialize with zero values in the UI but don't add to readings array
   const initialReading = {
@@ -292,17 +175,11 @@ function startMonitoring() {
   resetCharts();
   
   noReadingsTimeout = setTimeout(() => {
-    if (waitingMessage) {
-      waitingMessage.classList.add('hidden');
-    }
-    
-    if (readingsList) {
-      readingsList.innerHTML = 
-        '<div class="text-gray-500">No new readings found</div>';
-    }
+    document.getElementById('waiting-message').classList.add('hidden');
+    document.getElementById('readings-list').innerHTML = 
+      '<div class="text-gray-500">No new readings found</div>';
   }, 120000); // 2 minutes
   
-  // Get an initial reading right away
   fetchLatestData();
   monitoringTimeout = setInterval(fetchLatestData, 5000);
 }
@@ -316,234 +193,38 @@ function stopMonitoring() {
 
 // Fetch latest sensor data
 async function fetchLatestData() {
-  console.log('========= FETCH ATTEMPT STARTED =========');
   try {
-    console.log('Attempting to fetch latest data from Supabase');
-    
-    // Log what we're querying for
-    console.log(`Current time: ${new Date().toISOString()}`);
-    console.log(`Monitoring start time: ${monitoringStartTime}`);
-    
-    // Do a simple select first to test connection
-    const testQuery = await supabase
-      .from('sensor_data')
-      .select('count')
-      .limit(1);
-      
-    console.log('Test query result:', testQuery);
-    
-    if (testQuery.error) {
-      console.error('Test query failed:', testQuery.error);
-      throw new Error('Supabase connection test failed');
-    }
-    
-    // Now try the actual query
-    console.log('Running main query for latest data');
+    // Only fetch data that was created after monitoring started
     const { data, error } = await supabase
       .from('sensor_data')
       .select('*')
+      .gt('created_at', monitoringStartTime)
       .order('created_at', { ascending: false })
       .limit(1);
 
-    if (error) {
-      console.error('Supabase query error:', error);
-      console.error('Error details:', JSON.stringify(error));
-      throw error;
-    }
-
-    console.log('Query successful, data received:', data);
+    if (error) throw error;
 
     if (data && data.length > 0) {
       const reading = data[0];
-      console.log('Latest reading:', reading);
+      const readingTimestamp = new Date(reading.created_at).getTime();
       
-      try {
-        const readingTimestamp = new Date(reading.created_at).getTime();
-        console.log(`Parsed timestamp: ${readingTimestamp}, as date: ${new Date(readingTimestamp).toISOString()}`);
+      if (!lastReadingTimestamp || readingTimestamp > lastReadingTimestamp) {
+        clearTimeout(noReadingsTimeout);
+        document.getElementById('waiting-message').classList.add('hidden');
         
-        // Only check if reading is newer than monitoring start time
-        if (new Date(reading.created_at) >= new Date(monitoringStartTime)) {
-          console.log('This is a reading after monitoring started, adding to UI');
-          clearTimeout(noReadingsTimeout);
-          
-          const waitingMessage = document.getElementById('waiting-message');
-          if (waitingMessage) {
-            waitingMessage.classList.add('hidden');
-            console.log('Hiding waiting message');
-          } else {
-            console.warn('waiting-message element not found');
-          }
-          
-          // Update lastReadingTimestamp for reference but don't use it for filtering
-          lastReadingTimestamp = readingTimestamp;
-          readings.push(reading);
-          
-          try {
-            console.log('Updating dashboard...');
-            updateDashboard(reading, true);
-            console.log('Dashboard updated');
-          } catch (dashboardError) {
-            console.error('Error updating dashboard:', dashboardError);
-          }
-          
-          try {
-            console.log('Adding reading to list...');
-            addReadingToList(reading);
-            console.log('Reading added to list');
-          } catch (listError) {
-            console.error('Error adding reading to list:', listError);
-          }
-          
-          try {
-            console.log('Updating charts...');
-            updateCharts();
-            console.log('Charts updated');
-          } catch (chartError) {
-            console.error('Error updating charts:', chartError);
-          }
-          
-          console.log('Successfully processed new reading');
-        } else {
-          console.log('Reading is older than monitoring start time - skipping');
-        }
-      } catch (timestampError) {
-        console.error('Error processing timestamp:', timestampError);
-        console.error('Problem reading:', reading);
+        lastReadingTimestamp = readingTimestamp;
+        readings.push(reading);
+        updateDashboard(reading, true);
+        addReadingToList(reading);
+        updateCharts();
       }
-    } else {
-      console.log('No data returned from Supabase or empty array');
     }
-    
-    console.log('========= FETCH ATTEMPT COMPLETED SUCCESSFULLY =========');
   } catch (error) {
-    console.error('========= FETCH ATTEMPT FAILED =========');
     console.error('Error fetching data:', error);
-    console.error('Error name:', error.name);
-    console.error('Error message:', error.message);
-    if (error.stack) {
-      console.error('Error stack:', error.stack);
-    }
-    showNotification('Error fetching sensor data');
-  }
-}// Fetch latest sensor data
-async function fetchLatestData() {
-  console.log('========= FETCH ATTEMPT STARTED =========');
-  try {
-    console.log('Attempting to fetch latest data from Supabase');
-    
-    // Log what we're querying for
-    console.log(`Current time: ${new Date().toISOString()}`);
-    console.log(`Monitoring start time: ${monitoringStartTime}`);
-    
-    // Do a simple select first to test connection
-    const testQuery = await supabase
-      .from('sensor_data')
-      .select('count')
-      .limit(1);
-      
-    console.log('Test query result:', testQuery);
-    
-    if (testQuery.error) {
-      console.error('Test query failed:', testQuery.error);
-      throw new Error('Supabase connection test failed');
-    }
-    
-    // Now try the actual query
-    console.log('Running main query for latest data');
-    const { data, error } = await supabase
-      .from('sensor_data')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (error) {
-      console.error('Supabase query error:', error);
-      console.error('Error details:', JSON.stringify(error));
-      throw error;
-    }
-
-    console.log('Query successful, data received:', data);
-
-    if (data && data.length > 0) {
-      const reading = data[0];
-      console.log('Latest reading:', reading);
-      
-      try {
-        const readingTimestamp = new Date(reading.created_at).getTime();
-        console.log(`Parsed timestamp: ${readingTimestamp}, as date: ${new Date(readingTimestamp).toISOString()}`);
-        
-        // Only check if reading is newer than monitoring start time
-        if (new Date(reading.created_at) >= new Date(monitoringStartTime)) {
-          console.log('This is a reading after monitoring started, adding to UI');
-          clearTimeout(noReadingsTimeout);
-          
-          // Safely access waiting-message
-          const waitingMessage = document.getElementById('waiting-message');
-          if (waitingMessage) {
-            waitingMessage.classList.add('hidden');
-            console.log('Hiding waiting message');
-          } else {
-            console.warn('waiting-message element not found');
-          }
-          
-          // Update lastReadingTimestamp for reference but don't use it for filtering
-          lastReadingTimestamp = readingTimestamp;
-          readings.push(reading);
-          
-          try {
-            console.log('Updating dashboard...');
-            updateDashboard(reading, true);
-            console.log('Dashboard updated');
-          } catch (dashboardError) {
-            console.error('Error updating dashboard:', dashboardError);
-          }
-          
-          // Make sure readings-list exists before attempting to add to it
-          const readingsList = document.getElementById('readings-list');
-          if (readingsList) {
-            try {
-              console.log('Adding reading to list...');
-              addReadingToList(reading);
-              console.log('Reading added to list');
-            } catch (listError) {
-              console.error('Error adding reading to list:', listError);
-            }
-          } else {
-            console.error('readings-list element not found');
-          }
-          
-          try {
-            console.log('Updating charts...');
-            updateCharts();
-            console.log('Charts updated');
-          } catch (chartError) {
-            console.error('Error updating charts:', chartError);
-          }
-          
-          console.log('Successfully processed new reading');
-        } else {
-          console.log('Reading is older than monitoring start time - skipping');
-        }
-      } catch (timestampError) {
-        console.error('Error processing timestamp:', timestampError);
-        console.error('Problem reading:', reading);
-      }
-    } else {
-      console.log('No data returned from Supabase or empty array');
-    }
-    
-    console.log('========= FETCH ATTEMPT COMPLETED SUCCESSFULLY =========');
-  } catch (error) {
-    console.error('========= FETCH ATTEMPT FAILED =========');
-    console.error('Error fetching data:', error);
-    console.error('Error name:', error.name);
-    console.error('Error message:', error.message);
-    if (error.stack) {
-      console.error('Error stack:', error.stack);
-    }
     showNotification('Error fetching sensor data');
   }
 }
+
 // Set up date picker for previous readings
 function setupDatePicker() {
   const datePicker = document.getElementById('reading-date');
@@ -607,41 +288,26 @@ async function fetchPreviousReadings(date) {
 
 // Add a new reading to the list
 function addReadingToList(reading) {
-  try {
-    const readingsList = document.getElementById('readings-list');
-    if (!readingsList) {
-      console.error('readings-list element not found');
-      return;
-    }
-    
-    const readingElement = document.createElement('div');
-    readingElement.className = 'p-4 bg-gray-50 rounded-lg mb-2';
-    
-    const time = new Date(reading.created_at).toLocaleTimeString();
-    readingElement.innerHTML = `
-      <div class="flex justify-between items-center">
-        <span class="text-sm text-gray-500">${time}</span>
-        <div class="space-x-4">
-          <span class="text-blue-600">${reading.temperature}°C</span>
-          <span class="text-green-600">${reading.humidity}%</span>
-          <span class="text-purple-600">${reading.gas_level} PPM</span>
-        </div>
+  const readingsList = document.getElementById('readings-list');
+  const readingElement = document.createElement('div');
+  readingElement.className = 'p-4 bg-gray-50 rounded-lg';
+  
+  const time = new Date(reading.created_at).toLocaleTimeString();
+  readingElement.innerHTML = `
+    <div class="flex justify-between items-center">
+      <span class="text-sm text-gray-500">${time}</span>
+      <div class="space-x-4">
+        <span class="text-blue-600">${reading.temperature}°C</span>
+        <span class="text-green-600">${reading.humidity}%</span>
+        <span class="text-purple-600">${reading.gas_level} PPM</span>
       </div>
-    `;
-    
-    // Insert at the beginning of the list
-    if (readingsList.firstChild) {
-      readingsList.insertBefore(readingElement, readingsList.firstChild);
-    } else {
-      readingsList.appendChild(readingElement);
-    }
-    
-    // Maintain only the 10 most recent readings
-    while (readingsList.children.length > 10) {
-      readingsList.removeChild(readingsList.lastChild);
-    }
-  } catch (error) {
-    console.error('Error adding reading to list:', error);
+    </div>
+  `;
+  
+  readingsList.insertBefore(readingElement, readingsList.firstChild);
+  
+  if (readingsList.children.length > 10) {
+    readingsList.removeChild(readingsList.lastChild);
   }
 }
 
@@ -778,7 +444,6 @@ function updateCharts() {
   moistureChart.update();
 }
 
-// Calculate spoilage status based on average readings
 async function calculateSpoilageStatus() {
   // Make sure we have readings to analyze
   if (readings.length === 0) {
@@ -802,7 +467,7 @@ async function calculateSpoilageStatus() {
   const spoilageStatus = document.getElementById('spoilage-status');
   spoilageStatus.classList.remove('hidden');
   
-  // Display appropriate message based on thresholds exceeded
+  // Determine status message based on thresholds exceeded
   let statusMessage = '';
   let statusClass = '';
   
@@ -820,16 +485,8 @@ async function calculateSpoilageStatus() {
     statusClass = 'bg-red-100 text-red-800';
   }
   
-  // Update the status display - Move it above the readings
-  const readingsContainer = document.getElementById('readings-container');
-  const recentReadingsContainer = document.getElementById('recent-readings-container');
-  
-  // Position before recent readings container
-  if (recentReadingsContainer && spoilageStatus.parentNode === readingsContainer) {
-    readingsContainer.insertBefore(spoilageStatus, recentReadingsContainer);
-  }
-  
-  spoilageStatus.className = `p-4 mt-4 mb-4 rounded-lg ${statusClass}`;
+  // Update the status display
+  spoilageStatus.className = `p-4 mt-4 rounded-lg ${statusClass}`;
   spoilageStatus.innerHTML = `
     <h3 class="font-bold mb-2">Analysis Results:</h3>
     <div>Average Temperature: ${avgTemperature.toFixed(1)}°C (Threshold: ${currentThresholds.temperature}°C)</div>
@@ -838,40 +495,33 @@ async function calculateSpoilageStatus() {
     <div class="mt-2 font-bold">${statusMessage}</div>
   `;
   
-  // Send spoilage status to Supabase
+  // Create the data object to be uploaded to Supabase
+  const spoilageData = {
+    status_message: statusMessage,
+    avg_temperature: avgTemperature,
+    avg_humidity: avgHumidity,
+    avg_gas_level: avgGasLevel,
+    temperature_threshold: currentThresholds.temperature,
+    humidity_threshold: currentThresholds.humidity,
+    gas_threshold: currentThresholds.gas
+  };
+  
   try {
-    const { error } = await supabase
+    // Upload the data to Supabase
+    const { data, error } = await supabase
       .from('spoilage_status')
-      .delete()
-      .neq('id', '0');
-      
-    if (error) {
-      console.error("Error clearing previous spoilage status:", error);
-    }
+      .insert([spoilageData]);
     
-    const { error: insertError } = await supabase
-      .from('spoilage_status')
-      .insert([{
-        status_message: statusMessage,
-        avg_temperature: avgTemperature,
-        avg_humidity: avgHumidity,
-        avg_gas_level: avgGasLevel,
-        temperature_threshold: currentThresholds.temperature,
-        humidity_threshold: currentThresholds.humidity,
-        gas_threshold: currentThresholds.gas,
-        created_at: new Date().toISOString()
-      }]);
-      
-    if (insertError) {
-      console.error("Error saving spoilage status:", insertError);
-      showNotification("Failed to save spoilage status to server");
+    if (error) {
+      console.error('Error uploading spoilage status:', error);
+      showNotification('Failed to save spoilage status to database');
     } else {
-      console.log("Spoilage status saved successfully");
-      showNotification("Spoilage status saved and sent to device");
+      console.log('Spoilage status uploaded successfully:', data);
+      showNotification('Spoilage status saved to database');
     }
-  } catch (error) {
-    console.error("Exception saving spoilage status:", error);
-    showNotification("Error communicating with server");
+  } catch (err) {
+    console.error('Exception when uploading spoilage status:', err);
+    showNotification('Error occurred while saving data');
   }
 }
 
