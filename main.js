@@ -192,8 +192,10 @@ function stopMonitoring() {
 }
 
 // Fetch latest sensor data
+// Fetch latest sensor data
 async function fetchLatestData() {
   try {
+    console.log("Fetching latest data...");
     // Only fetch data that was created after monitoring started
     const { data, error } = await supabase
       .from('sensor_data')
@@ -202,26 +204,84 @@ async function fetchLatestData() {
       .order('created_at', { ascending: false })
       .limit(1);
 
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase error:", error);
+      throw error;
+    }
+
+    console.log("Fetched data:", data);
 
     if (data && data.length > 0) {
       const reading = data[0];
       const readingTimestamp = new Date(reading.created_at).getTime();
       
       if (!lastReadingTimestamp || readingTimestamp > lastReadingTimestamp) {
+        console.log("New reading detected");
         clearTimeout(noReadingsTimeout);
-        document.getElementById('waiting-message').classList.add('hidden');
+        
+        const waitingMessage = document.getElementById('waiting-message');
+        if (waitingMessage) {
+          waitingMessage.classList.add('hidden');
+        } else {
+          console.warn("Element 'waiting-message' not found");
+        }
         
         lastReadingTimestamp = readingTimestamp;
         readings.push(reading);
-        updateDashboard(reading, true);
-        addReadingToList(reading);
-        updateCharts();
+        
+        try {
+          console.log("Updating dashboard...");
+          updateDashboard(reading, true);
+          console.log("Adding reading to list...");
+          addReadingToList(reading);
+          console.log("Updating charts...");
+          updateCharts();
+        } catch (innerError) {
+          console.error("Error in update functions:", innerError);
+        }
+      } else {
+        console.log("Reading already processed or older than last reading");
       }
+    } else {
+      console.log("No new data found");
     }
   } catch (error) {
     console.error('Error fetching data:', error);
     showNotification('Error fetching sensor data');
+  }
+}
+
+// Add a new reading to the list
+function addReadingToList(reading) {
+  console.log("Adding reading to list:", reading);
+  const readingsList = document.getElementById('readings-list');
+  
+  if (!readingsList) {
+    console.error("Element 'readings-list' not found in DOM");
+    return;
+  }
+  
+  const readingElement = document.createElement('div');
+  readingElement.className = 'p-4 bg-gray-50 rounded-lg';
+  
+  const time = new Date(reading.created_at).toLocaleTimeString();
+  readingElement.innerHTML = `
+    <div class="flex justify-between items-center">
+      <span class="text-sm text-gray-500">${time}</span>
+      <div class="space-x-4">
+        <span class="text-blue-600">${reading.temperature}°C</span>
+        <span class="text-green-600">${reading.humidity}%</span>
+        <span class="text-purple-600">${reading.gas_level} PPM</span>
+      </div>
+    </div>
+  `;
+  
+  readingsList.insertBefore(readingElement, readingsList.firstChild);
+  console.log("Reading added, current list length:", readingsList.children.length);
+  
+  if (readingsList.children.length > 10) {
+    readingsList.removeChild(readingsList.lastChild);
+    console.log("Removed oldest reading, new list length:", readingsList.children.length);
   }
 }
 
@@ -286,30 +346,30 @@ async function fetchPreviousReadings(date) {
   }
 }
 
-// Add a new reading to the list
-function addReadingToList(reading) {
-  const readingsList = document.getElementById('readings-list');
-  const readingElement = document.createElement('div');
-  readingElement.className = 'p-4 bg-gray-50 rounded-lg';
-  
-  const time = new Date(reading.created_at).toLocaleTimeString();
-  readingElement.innerHTML = `
-    <div class="flex justify-between items-center">
-      <span class="text-sm text-gray-500">${time}</span>
-      <div class="space-x-4">
-        <span class="text-blue-600">${reading.temperature}°C</span>
-        <span class="text-green-600">${reading.humidity}%</span>
-        <span class="text-purple-600">${reading.gas_level} PPM</span>
+  // Add a new reading to the list
+  function addReadingToList(reading) {
+    const readingsList = document.getElementById('readings-list');
+    const readingElement = document.createElement('div');
+    readingElement.className = 'p-4 bg-gray-50 rounded-lg';
+    
+    const time = new Date(reading.created_at).toLocaleTimeString();
+    readingElement.innerHTML = `
+      <div class="flex justify-between items-center">
+        <span class="text-sm text-gray-500">${time}</span>
+        <div class="space-x-4">
+          <span class="text-blue-600">${reading.temperature}°C</span>
+          <span class="text-green-600">${reading.humidity}%</span>
+          <span class="text-purple-600">${reading.gas_level} PPM</span>
+        </div>
       </div>
-    </div>
-  `;
-  
-  readingsList.insertBefore(readingElement, readingsList.firstChild);
-  
-  if (readingsList.children.length > 10) {
-    readingsList.removeChild(readingsList.lastChild);
+    `;
+    
+    readingsList.insertBefore(readingElement, readingsList.firstChild);
+    
+    if (readingsList.children.length > 10) {
+      readingsList.removeChild(readingsList.lastChild);
+    }
   }
-}
 
 // Update dashboard with new values
 function updateDashboard(data, updateStatus = true) {
