@@ -9,13 +9,13 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Food type thresholds
 const foodThresholds = {
-  citrus: { temperature: 25, humidity: 70, gas: 1000 },
-  berries: { temperature: 25, humidity: 70, gas: 1000 },
-  stone: { temperature: 25, humidity: 70, gas: 1000 },
-  tropical: { temperature: 25, humidity: 70, gas: 1000 },
-  temperate: { temperature: 25, humidity: 70, gas: 1000 },
-  leafy: { temperature: 25, humidity: 70, gas: 1000 },
-  root: { temperature: 25, humidity: 70, gas: 1000 }
+  citrus: { temperature: 27, humidity: 56, gas: 900 },
+  berries: { temperature: 25, humidity: 70, gas: 950 },
+  stone: { temperature: 30, humidity: 40, gas: 1000 },
+  tropical: { temperature: 34, humidity: 32, gas: 450 },
+  temperate: { temperature: 29, humidity: 45, gas: 900 },
+  leafy: { temperature: 20, humidity: 20, gas: 750 },
+  root: { temperature: 23, humidity: 15, gas: 800 }
 };
 
 let currentThresholds = null;
