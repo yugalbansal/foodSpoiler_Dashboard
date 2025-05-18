@@ -9,13 +9,9 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Food type thresholds
 const foodThresholds = {
-  citrus: { temperature: 27, humidity: 56, gas: 900 },
-  berries: { temperature: 25, humidity: 70, gas: 950 },
-  stone: { temperature: 30, humidity: 40, gas: 1000 },
-  tropical: { temperature: 34, humidity: 32, gas: 450 },
-  temperate: { temperature: 29, humidity: 45, gas: 900 },
-  leafy: { temperature: 20, humidity: 20, gas: 750 },
-  root: { temperature: 23, humidity: 15, gas: 800 }
+  normal: { temperature: 25, humidity: 50, gas: 800 },
+  refrigerated: { temperature: 4, humidity: 40, gas: 600 },
+  custom: null
 };
 
 let currentThresholds = null;
@@ -573,14 +569,14 @@ async function calculateSpoilageStatus() {
   let statusClass = '';
   
   if (thresholdsExceeded === 0) {
-    statusMessage = 'Food is good';
+    statusMessage = 'Food is not spoiled';
     statusClass = 'bg-green-100 text-green-800';
-  } else if (thresholdsExceeded === 1) {
-    statusMessage = 'Food started spoiling';
-    statusClass = 'bg-yellow-100 text-yellow-800';
-  } else if (thresholdsExceeded === 2) {
-    statusMessage = 'Food may be spoiled';
-    statusClass = 'bg-orange-100 text-orange-800';
+  // } else if (thresholdsExceeded === 1) {
+  //   statusMessage = 'Food started spoiling';
+  //   statusClass = 'bg-yellow-100 text-yellow-800';
+  // } else if (thresholdsExceeded === 2) {
+  //   statusMessage = 'Food may be spoiled';
+  //   statusClass = 'bg-orange-100 text-orange-800';
   } else {
     statusMessage = 'Food is spoiled';
     statusClass = 'bg-red-100 text-red-800';
@@ -627,22 +623,27 @@ async function calculateSpoilageStatus() {
 }
 
 // Show notifications
-function showNotification(message) {
+function showNotification(message, type = 'info') {
   let notificationArea = document.getElementById('notification-area');
   if (!notificationArea) {
     notificationArea = document.createElement('div');
     notificationArea.id = 'notification-area';
-    notificationArea.className = 'fixed bottom-4 right-4 z-50';
+    notificationArea.className = 'fixed bottom-4 right-4 z-50 space-y-2';
     document.body.appendChild(notificationArea);
   }
 
+  // Remove any existing notifications
+  const existingNotifications = notificationArea.querySelectorAll('.notification');
+  existingNotifications.forEach(notification => notification.remove());
+
   const notification = document.createElement('div');
-  notification.className = 'bg-blue-500 text-white px-4 py-2 rounded shadow-lg mb-2';
+  notification.className = `notification bg-${type === 'error' ? 'red' : 'blue'}-500 text-white px-4 py-2 rounded shadow-lg mb-2 transition-opacity duration-300`;
   notification.textContent = message;
   notificationArea.appendChild(notification);
 
   setTimeout(() => {
-    notification.remove();
+    notification.style.opacity = '0';
+    setTimeout(() => notification.remove(), 300);
   }, 3000);
 }
 

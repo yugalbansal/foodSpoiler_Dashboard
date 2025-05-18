@@ -21,7 +21,252 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
     
     <!-- Custom Styles -->
-    <link rel="stylesheet" href="index.css" />
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      /* Custom Styling */
+      :root {
+        --primary: #4F46E5;
+        --primary-dark: #4338CA;
+        --secondary: #10B981;
+        --danger: #EF4444;
+        --warning: #F59E0B;
+        --info: #3B82F6;
+        --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      }
+      
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        background: #f9fafb;
+        background-image: linear-gradient(to right, rgba(79, 70, 229, 0.05) 1px, transparent 1px),
+                          linear-gradient(to bottom, rgba(79, 70, 229, 0.05) 1px, transparent 1px);
+        background-size: 30px 30px;
+      }
+      
+      .pulse {
+        animation: pulse 2s infinite;
+      }
+      
+      @keyframes pulse {
+        0% {
+          transform: scale(0.95);
+          box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.7);
+        }
+        
+        70% {
+          transform: scale(1);
+          box-shadow: 0 0 0 10px rgba(79, 70, 229, 0);
+        }
+        
+        100% {
+          transform: scale(0.95);
+          box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
+        }
+      }
+      
+      .glass-card {
+        backdrop-filter: blur(16px) saturate(180%);
+        background-color: rgba(255, 255, 255, 0.7);
+        border-radius: 12px;
+        border: 1px solid rgba(209, 213, 219, 0.3);
+        transition: all 0.3s ease;
+      }
+      
+      .glass-card:hover {
+        transform: translateY(-5px);
+        box-shadow: var(--card-shadow);
+      }
+      
+      .value-badge {
+        font-size: 2.2rem;
+        font-weight: 700;
+        background: linear-gradient(90deg, #4F46E5 0%, #818CF8 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        display: inline-block;
+      }
+      
+      .value-badge.temperature {
+        background: linear-gradient(90deg, #EF4444 0%, #F87171 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      
+      .value-badge.humidity {
+        background: linear-gradient(90deg, #10B981 0%, #34D399 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      
+      .value-badge.gas {
+        background: linear-gradient(90deg, #8B5CF6 0%, #A78BFA 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      
+      .sensor-icon {
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+      }
+      
+      .btn-gradient {
+        background: linear-gradient(90deg, var(--primary) 0%, var(--info) 100%);
+        color: white;
+        border: none;
+        position: relative;
+        z-index: 1;
+        transition: all 0.3s ease;
+        overflow: hidden;
+      }
+      
+      .btn-gradient:before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, var(--info) 0%, var(--primary) 100%);
+        opacity: 0;
+        z-index: -1;
+        transition: opacity 0.3s ease;
+      }
+      
+      .btn-gradient:hover:before {
+        opacity: 1;
+      }
+      
+      .wavy-bg {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        z-index: -1;
+        opacity: 0.1;
+      }
+      
+      .header-gradient {
+        background: linear-gradient(90deg, var(--primary) 0%, var(--info) 100%);
+      }
+      
+      .status-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 8px;
+      }
+      
+      .reading-item {
+        border-left: 4px solid transparent;
+        transition: all 0.3s ease;
+      }
+      
+      .reading-item:hover {
+        transform: translateX(5px);
+      }
+      
+      .chart-container {
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+      }
+      
+      .chart-container:hover {
+        transform: scale(1.01);
+      }
+      
+      .chart-container::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 80%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        transform: rotate(30deg);
+        pointer-events: none;
+      }
+      
+      .chart-container:hover::before {
+        opacity: 0.1;
+      }
+      
+      /* Dashboard Header Animation */
+      .dashboard-title span {
+        display: inline-block;
+        opacity: 0;
+        animation: fadeIn 0.5s forwards;
+      }
+      
+      @keyframes fadeIn {
+        to {
+          opacity: 1;
+        }
+      }
+      
+      /* Loading ring animation */
+      .loading-ring {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid rgba(255,255,255,.3);
+        border-radius: 50%;
+        border-top-color: white;
+        animation: spin 1s ease-in-out infinite;
+      }
+      
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      
+      /* Card appear animation */
+      .animate-in {
+        animation: animateIn 0.5s forwards;
+      }
+      
+      @keyframes animateIn {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      
+      /* Custom switches */
+      .toggle-checkbox:checked {
+        right: 0;
+        border-color: #4F46E5;
+      }
+      .toggle-checkbox:checked + .toggle-label {
+        background-color: #4F46E5;
+      }
+      
+      /* Custom date picker styling */
+      input[type="date"] {
+        position: relative;
+      }
+      
+      input[type="date"]::-webkit-calendar-picker-indicator {
+        background: transparent;
+        color: transparent;
+        cursor: pointer;
+        height: 100%;
+        left: 0;
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 100%;
+      }
+    </style>
   </head>
   <body class="bg-gray-50">
     <!-- Wave SVG Background -->
@@ -75,8 +320,8 @@
 
         <!-- Curved bottom shape -->
         <div class="absolute -bottom-1 left-0 right-0">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 40">
-            <path fill="#f9fafb" fill-opacity="1" d="M0,20L80,22C160,24,320,28,480,30C640,32,800,32,960,28C1120,24,1280,16,1360,12L1440,8L1440,40L1360,40C1280,40,1120,40,960,40C800,40,640,40,480,40C320,40,160,40,80,40L0,40Z"></path>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 80">
+            <path fill="#f9fafb" fill-opacity="1" d="M0,32L80,37.3C160,43,320,53,480,58.7C640,64,800,64,960,53.3C1120,43,1280,21,1360,10.7L1440,0L1440,80L1360,80C1280,80,1120,80,960,80C800,80,640,80,480,80C320,80,160,80,80,80L0,80Z"></path>
           </svg>
         </div>
       </header>
@@ -311,10 +556,10 @@
         <!-- Recent and Previous Readings -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <!-- Recent Readings -->
-          <div class="bg-white rounded-lg shadow-md p-6 dark:bg-gray-800">
+          <div class="bg-white rounded-lg shadow-md p-6">
             <div class="flex justify-between items-center mb-4">
-              <h2 class="text-xl font-semibold text-gray-700 dark:text-gray-200">Recent Readings</h2>
-              <div id="waiting-message" class="text-sm text-gray-500 dark:text-gray-400 hidden">
+              <h2 class="text-xl font-semibold text-gray-700">Recent Readings</h2>
+              <div id="waiting-message" class="text-sm text-gray-500 hidden">
                 <i class="fas fa-spinner fa-spin mr-2"></i>
                 Waiting for new readings...
               </div>
@@ -331,15 +576,15 @@
 
         <!-- Chart Section -->
         <div class="mt-8">
-          <div class="chart-container bg-white shadow rounded-lg p-4 mb-4 dark:bg-gray-800">
+          <div class="chart-container bg-white shadow rounded-lg p-4 mb-4">
             <canvas id="temperatureChart"></canvas>
           </div>
 
-          <div class="chart-container bg-white shadow rounded-lg p-4 mb-4 dark:bg-gray-800">
+          <div class="chart-container bg-white shadow rounded-lg p-4 mb-4">
             <canvas id="humidityChart"></canvas>
           </div>
 
-          <div class="chart-container bg-white shadow rounded-lg p-4 mb-4 dark:bg-gray-800">
+          <div class="chart-container bg-white shadow rounded-lg p-4 mb-4">
             <canvas id="moistureChart"></canvas>
           </div>
         </div>
@@ -358,70 +603,6 @@
         duration: 800,
         easing: 'ease-in-out',
         once: true
-      });
-    </script>
-    
-    <!-- Date and Time Script -->
-    <script>
-      // Function to update date and time
-      function updateDateTime() {
-        const now = new Date();
-        
-        // Format time (HH:MM:SS AM/PM)
-        const timeOptions = { hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: true };
-        const timeStr = now.toLocaleTimeString('en-US', timeOptions);
-        
-        // Format date (Month DD, YYYY)
-        const dateOptions = { year: 'numeric', month: 'long', day: 'numeric' };
-        const dateStr = now.toLocaleDateString('en-US', dateOptions);
-        
-        // Update the DOM elements
-        document.getElementById('current-time').textContent = timeStr;
-        document.getElementById('current-date').textContent = dateStr;
-      }
-      
-      // Update time immediately and then every second
-      updateDateTime();
-      setInterval(updateDateTime, 1000);
-    </script>
-    
-    <!-- Dark Mode Script -->
-    <script>
-      // Initialize dark mode from localStorage
-      document.addEventListener('DOMContentLoaded', function() {
-        const darkModeToggle = document.getElementById('dark-mode');
-        const htmlElement = document.documentElement;
-        
-        // Check if user previously enabled dark mode
-        const darkModeEnabled = localStorage.getItem('darkMode') === 'enabled';
-        
-        // Apply dark mode if enabled
-        if (darkModeEnabled) {
-          htmlElement.classList.add('dark');
-          darkModeToggle.checked = true;
-          updateDarkModeSVGColors(true);
-        }
-        
-        // Toggle dark mode when checkbox changes
-        darkModeToggle.addEventListener('change', function() {
-          if (this.checked) {
-            htmlElement.classList.add('dark');
-            localStorage.setItem('darkMode', 'enabled');
-            updateDarkModeSVGColors(true);
-          } else {
-            htmlElement.classList.remove('dark');
-            localStorage.setItem('darkMode', 'disabled');
-            updateDarkModeSVGColors(false);
-          }
-        });
-        
-        // Function to update SVG colors in dark mode
-        function updateDarkModeSVGColors(isDark) {
-          const bottomWavePath = document.querySelector('svg path[fill="#f9fafb"]');
-          if (bottomWavePath) {
-            bottomWavePath.setAttribute('fill', isDark ? '#1f2937' : '#f9fafb');
-          }
-        }
       });
     </script>
     
