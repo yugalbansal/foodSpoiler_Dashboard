@@ -188,7 +188,6 @@ function stopMonitoring() {
 }
 
 // Fetch latest sensor data
-// Fetch latest sensor data
 async function fetchLatestData() {
   try {
     console.log("Fetching latest data...");
@@ -211,10 +210,15 @@ async function fetchLatestData() {
       const reading = data[0];
       const readingTimestamp = new Date(reading.created_at).getTime();
       
+      console.log("Last reading timestamp:", lastReadingTimestamp);
+      console.log("Current reading timestamp:", readingTimestamp);
+      
+      // Always process the first reading or if the new reading is more recent
       if (!lastReadingTimestamp || readingTimestamp > lastReadingTimestamp) {
         console.log("New reading detected");
         clearTimeout(noReadingsTimeout);
         
+        // Safely find the waiting message element
         const waitingMessage = document.getElementById('waiting-message');
         if (waitingMessage) {
           waitingMessage.classList.add('hidden');
@@ -226,14 +230,15 @@ async function fetchLatestData() {
         readings.push(reading);
         
         try {
-          console.log("Updating dashboard...");
+          console.log("Updating dashboard with reading:", reading);
           updateDashboard(reading, true);
-          console.log("Adding reading to list...");
-          addReadingToList(reading);
-          console.log("Updating charts...");
+          console.log("Adding reading to list");
+          addReadingToList(reading); // Make sure this function is properly defined
+          console.log("Updating charts");
           updateCharts();
         } catch (innerError) {
           console.error("Error in update functions:", innerError);
+          console.error(innerError.stack);
         }
       } else {
         console.log("Reading already processed or older than last reading");
@@ -243,20 +248,14 @@ async function fetchLatestData() {
     }
   } catch (error) {
     console.error('Error fetching data:', error);
+    console.error(error.stack);
     showNotification('Error fetching sensor data');
   }
 }
 
-// Add a new reading to the list
+// Add a new reading to the list - THIS FUNCTION WAS COMMENTED OUT IN YOUR CODE
 function addReadingToList(reading) {
-  console.log("Adding reading to list:", reading);
   const readingsList = document.getElementById('readings-list');
-  
-  if (!readingsList) {
-    console.error("Element 'readings-list' not found in DOM");
-    return;
-  }
-  
   const readingElement = document.createElement('div');
   readingElement.className = 'p-4 bg-gray-50 rounded-lg';
   
@@ -273,11 +272,57 @@ function addReadingToList(reading) {
   `;
   
   readingsList.insertBefore(readingElement, readingsList.firstChild);
-  console.log("Reading added, current list length:", readingsList.children.length);
   
   if (readingsList.children.length > 10) {
     readingsList.removeChild(readingsList.lastChild);
-    console.log("Removed oldest reading, new list length:", readingsList.children.length);
+  }
+}
+
+// Update dashboard with new values
+function updateDashboard(data, updateStatusIndicators = true) {
+  const tempElement = document.getElementById('temperature-value');
+  const tempStatus = document.getElementById('temperature-status');
+  if (tempElement) tempElement.textContent = `${data.temperature}°C`;
+  
+  const humidityElement = document.getElementById('humidity-value');
+  const humidityStatus = document.getElementById('humidity-status');
+  if (humidityElement) humidityElement.textContent = `${data.humidity}%`;
+  
+  const gasElement = document.getElementById('gas-value');
+  const gasStatus = document.getElementById('gas-status');
+  if (gasElement) gasElement.textContent = `${data.gas_level} PPM`;
+  
+  if (updateStatusIndicators && currentThresholds) {
+    // Call updateSensorStatus
+    if (tempStatus) updateSensorStatus(tempStatus, data.temperature, currentThresholds.temperature, 'Temperature');
+    if (humidityStatus) updateSensorStatus(humidityStatus, data.humidity, currentThresholds.humidity, 'Humidity');
+    if (gasStatus) updateSensorStatus(gasStatus, data.gas_level, currentThresholds.gas, 'Gas level');
+  } else {
+    // Clear status indicators
+    if (tempStatus) {
+      tempStatus.textContent = '';
+      tempStatus.className = 'mt-2 text-sm';
+    }
+    if (humidityStatus) {
+      humidityStatus.textContent = '';
+      humidityStatus.className = 'mt-2 text-sm';
+    }
+    if (gasStatus) {
+      gasStatus.textContent = '';
+      gasStatus.className = 'mt-2 text-sm';
+    }
+  }
+}
+
+// Update status indicators
+function updateSensorStatus(element, value, threshold, sensorType) {
+  if (value > threshold) {
+    element.textContent = `⚠️ ${sensorType} above threshold!`;
+    element.className = 'mt-2 text-sm text-red-600';
+    showNotification(`Warning: ${sensorType} above threshold!`);
+  } else {
+    element.textContent = 'Normal';
+    element.className = 'mt-2 text-sm text-green-600';
   }
 }
 
@@ -339,113 +384,6 @@ async function fetchPreviousReadings(date) {
   } catch (error) {
     console.error('Error fetching previous readings:', error);
     showNotification('Error fetching previous readings');
-  }
-}
-
-  // Add a new reading to the list
-  // function addReadingToList(reading) {
-  //   const readingsList = document.getElementById('readings-list');
-  //   const readingElement = document.createElement('div');
-  //   readingElement.className = 'p-4 bg-gray-50 rounded-lg';
-    
-  //   const time = new Date(reading.created_at).toLocaleTimeString();
-  //   readingElement.innerHTML = `
-  //     <div class="flex justify-between items-center">
-  //       <span class="text-sm text-gray-500">${time}</span>
-  //       <div class="space-x-4">
-  //         <span class="text-blue-600">${reading.temperature}°C</span>
-  //         <span class="text-green-600">${reading.humidity}%</span>
-  //         <span class="text-purple-600">${reading.gas_level} PPM</span>
-  //       </div>
-  //     </div>
-  //   `;
-    
-  //   readingsList.insertBefore(readingElement, readingsList.firstChild);
-    
-  //   if (readingsList.children.length > 10) {
-  //     readingsList.removeChild(readingsList.lastChild);
-  //   }
-  // }
-
-// Update dashboard with new values
-// function updateDashboard(data, updateStatus = true) {
-//   const tempElement = document.getElementById('temperature-value');
-//   const tempStatus = document.getElementById('temperature-status');
-//   tempElement.textContent = `${data.temperature}°C`;
-  
-//   const humidityElement = document.getElementById('humidity-value');
-//   const humidityStatus = document.getElementById('humidity-status');
-//   humidityElement.textContent = `${data.humidity}%`;
-  
-//   const gasElement = document.getElementById('gas-value');
-//   const gasStatus = document.getElementById('gas-status');
-//   gasElement.textContent = `${data.gas_level} PPM`;
-  
-//   if (updateStatus && currentThresholds) {
-//     updateStatus(tempStatus, data.temperature, currentThresholds.temperature, 'Temperature');
-//     updateStatus(humidityStatus, data.humidity, currentThresholds.humidity, 'Humidity');
-//     updateStatus(gasStatus, data.gas_level, currentThresholds.gas, 'Gas level');
-//   } else {
-//     // Clear status indicators
-//     tempStatus.textContent = '';
-//     tempStatus.className = 'mt-2 text-sm';
-//     humidityStatus.textContent = '';
-//     humidityStatus.className = 'mt-2 text-sm';
-//     gasStatus.textContent = '';
-//     gasStatus.className = 'mt-2 text-sm';
-//   }
-// }
-
-// // Update status indicators
-// function updateStatus(element, value, threshold, sensorType) {
-//   if (value > threshold) {
-//     element.textContent = `⚠️ ${sensorType} above threshold!`;
-//     element.className = 'mt-2 text-sm text-red-600';
-//     showNotification(`Warning: ${sensorType} above threshold!`);
-//   } else {
-//     element.textContent = 'Normal';
-//     element.className = 'mt-2 text-sm text-green-600';
-//   }
-// }
-// Update dashboard with new values
-function updateDashboard(data, updateStatusIndicators = true) {
-  const tempElement = document.getElementById('temperature-value');
-  const tempStatus = document.getElementById('temperature-status');
-  tempElement.textContent = `${data.temperature}°C`;
-  
-  const humidityElement = document.getElementById('humidity-value');
-  const humidityStatus = document.getElementById('humidity-status');
-  humidityElement.textContent = `${data.humidity}%`;
-  
-  const gasElement = document.getElementById('gas-value');
-  const gasStatus = document.getElementById('gas-status');
-  gasElement.textContent = `${data.gas_level} PPM`;
-  
-  if (updateStatusIndicators && currentThresholds) {
-    // Call updateSensorStatus instead of updateStatus
-    updateSensorStatus(tempStatus, data.temperature, currentThresholds.temperature, 'Temperature');
-    updateSensorStatus(humidityStatus, data.humidity, currentThresholds.humidity, 'Humidity');
-    updateSensorStatus(gasStatus, data.gas_level, currentThresholds.gas, 'Gas level');
-  } else {
-    // Clear status indicators
-    tempStatus.textContent = '';
-    tempStatus.className = 'mt-2 text-sm';
-    humidityStatus.textContent = '';
-    humidityStatus.className = 'mt-2 text-sm';
-    gasStatus.textContent = '';
-    gasStatus.className = 'mt-2 text-sm';
-  }
-}
-
-// Update status indicators - rename this function to updateSensorStatus
-function updateSensorStatus(element, value, threshold, sensorType) {
-  if (value > threshold) {
-    element.textContent = `⚠️ ${sensorType} above threshold!`;
-    element.className = 'mt-2 text-sm text-red-600';
-    showNotification(`Warning: ${sensorType} above threshold!`);
-  } else {
-    element.textContent = 'Normal';
-    element.className = 'mt-2 text-sm text-green-600';
   }
 }
 
@@ -571,12 +509,6 @@ async function calculateSpoilageStatus() {
   if (thresholdsExceeded === 0) {
     statusMessage = 'Food is not spoiled';
     statusClass = 'bg-green-100 text-green-800';
-  // } else if (thresholdsExceeded === 1) {
-  //   statusMessage = 'Food started spoiling';
-  //   statusClass = 'bg-yellow-100 text-yellow-800';
-  // } else if (thresholdsExceeded === 2) {
-  //   statusMessage = 'Food may be spoiled';
-  //   statusClass = 'bg-orange-100 text-orange-800';
   } else {
     statusMessage = 'Food is spoiled';
     statusClass = 'bg-red-100 text-red-800';
