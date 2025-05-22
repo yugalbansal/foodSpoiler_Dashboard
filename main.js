@@ -9,8 +9,8 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Food type thresholds
 const foodThresholds = {
-  room: { temperature: 25, humidity: 50, gas: 800 },
-  refrigerated: { temperature: 4, humidity: 40, gas: 600 },
+  room: { temperature: 30, humidity: 70, gas: 250 },
+  refrigerated: { temperature: 4, humidity: 40, gas: 100 },
   custom: null
 };
 
@@ -716,19 +716,19 @@ function getStatusInfo(wsi) {
     };
   } else if (wsi <= 1.2) {
     return { 
-      message: 'Caution: Approaching Thresholds', 
+      message: 'Caution: Spoiled', 
       class: 'bg-yellow-100 text-yellow-800',
       severity: 'medium'
     };
   } else if (wsi <= 1.5) {
     return { 
-      message: 'Warning: Thresholds Exceeded', 
+      message: 'Warning: Spoiled', 
       class: 'bg-orange-100 text-orange-800',
       severity: 'high'
     };
   } else {
     return { 
-      message: 'Critical: Food Spoilage Likely', 
+      message: 'Critical: Food Spoilage', 
       class: 'bg-red-100 text-red-800',
       severity: 'critical'
     };
