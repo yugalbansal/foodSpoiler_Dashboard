@@ -9,9 +9,16 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Food type thresholds
 const foodThresholds = {
-  normal: { temperature: 25, humidity: 50, gas: 800 },
+  room: { temperature: 25, humidity: 50, gas: 800 },
   refrigerated: { temperature: 4, humidity: 40, gas: 600 },
   custom: null
+};
+
+// Default weights by storage type
+const defaultWeights = {
+  refrigerated: { temperature: 0.5, humidity: 0.3, gas: 0.2 },
+  room: { temperature: 0.3, humidity: 0.4, gas: 0.3 },
+  custom: { temperature: 0.33, humidity: 0.33, gas: 0.34 }
 };
 
 let currentThresholds = null;
@@ -21,6 +28,8 @@ let monitoringTimeout = null;
 let noReadingsTimeout = null;
 let lastReadingTimestamp = null;
 let monitoringStartTime = null;
+let currentWeights = defaultWeights.room;
+let wsiHistory = [];
 
 // Chart objects
 let temperatureChart;
@@ -45,6 +54,10 @@ function setupFoodTypeSelector() {
     const selectedType = e.target.value;
     
     if (selectedType) {
+      if (selectedType === 'refrigerated') {
+        showPopupMessage('We suggest you to keep your food items in room or normal conditions for better results.');
+      }
+      
       if (selectedType === 'custom') {
         customInputs.classList.remove('hidden');
         document.getElementById('custom-temperature').value = foodThresholds.custom?.temperature || 25;
@@ -52,25 +65,10 @@ function setupFoodTypeSelector() {
         document.getElementById('custom-gas').value = foodThresholds.custom?.gas || 1000;
       } else {
         customInputs.classList.add('hidden');
-        currentThresholds = foodThresholds[selectedType];
+        currentWeights = defaultWeights[selectedType];
         
         try {
-          await supabase
-            .from('thresholds')
-            .delete()
-            .neq('id', '0');
-          
-          const { error } = await supabase
-            .from('thresholds')
-            .insert([{
-              temperature: currentThresholds.temperature,
-              humidity: currentThresholds.humidity,
-              gas_level: currentThresholds.gas,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }]);
-          
-          if (error) throw error;
+          await updateThresholds(selectedType);
           showNotification(`Thresholds updated for ${selectedType}`);
         } catch (error) {
           console.error('Error updating thresholds:', error);
@@ -126,7 +124,7 @@ function setupFoodTypeSelector() {
 function setupStartButton() {
   const startButton = document.getElementById('start-monitoring');
   
-  startButton.addEventListener('click', () => {
+  startButton.addEventListener('click', async () => {
     if (!isMonitoring) {
       isMonitoring = true;
       startButton.textContent = 'Stop Monitoring';
@@ -140,7 +138,7 @@ function setupStartButton() {
       startButton.classList.replace('hover:bg-red-600', 'hover:bg-blue-600');
       stopMonitoring();
       // Calculate and display the spoilage status after stopping
-      calculateSpoilageStatus();
+      await calculateSpoilageStatus();
     }
   });
 }
@@ -479,78 +477,261 @@ function updateCharts() {
   moistureChart.update();
 }
 
+// Add updateThresholds function
+async function updateThresholds(storageType) {
+  const thresholds = foodThresholds[storageType];
+  
+  try {
+    await supabase
+      .from('thresholds')
+      .delete()
+      .neq('id', '0');
+    
+    const { error } = await supabase
+      .from('thresholds')
+      .insert([{
+        temperature: thresholds.temperature,
+        humidity: thresholds.humidity,
+        gas_level: thresholds.gas,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }]);
+    
+    if (error) throw error;
+    currentThresholds = thresholds;
+  } catch (error) {
+    console.error('Error updating thresholds:', error);
+    throw error;
+  }
+}
+
+// Update calculateSpoilageStatus function
 async function calculateSpoilageStatus() {
-  // Make sure we have readings to analyze
+  console.log('Calculating spoilage status...');
+  console.log('Readings:', readings);
+  
   if (readings.length === 0) {
     showNotification('No readings collected during monitoring');
     return;
   }
   
-  // Calculate averages
-  const avgTemperature = readings.reduce((sum, r) => sum + r.temperature, 0) / readings.length;
-  const avgHumidity = readings.reduce((sum, r) => sum + r.humidity, 0) / readings.length;
-  const avgGasLevel = readings.reduce((sum, r) => sum + r.gas_level, 0) / readings.length;
-  
-  // Count how many values are above their thresholds
-  let thresholdsExceeded = 0;
-  
-  if (avgTemperature > currentThresholds.temperature) thresholdsExceeded++;
-  if (avgHumidity > currentThresholds.humidity) thresholdsExceeded++;
-  if (avgGasLevel > currentThresholds.gas) thresholdsExceeded++;
-  
-  // Get status element
-  const spoilageStatus = document.getElementById('spoilage-status');
-  spoilageStatus.classList.remove('hidden');
-  
-  // Determine status message based on thresholds exceeded
-  let statusMessage = '';
-  let statusClass = '';
-  
-  if (thresholdsExceeded === 0) {
-    statusMessage = 'Food is not spoiled';
-    statusClass = 'bg-green-100 text-green-800';
-  } else {
-    statusMessage = 'Food is spoiled';
-    statusClass = 'bg-red-100 text-red-800';
-  }
-  
-  // Update the status display
-  spoilageStatus.className = `p-4 mt-4 rounded-lg ${statusClass}`;
-  spoilageStatus.innerHTML = `
-    <h3 class="font-bold mb-2">Analysis Results:</h3>
-    <div>Average Temperature: ${avgTemperature.toFixed(1)}°C (Threshold: ${currentThresholds.temperature}°C)</div>
-    <div>Average Humidity: ${avgHumidity.toFixed(1)}% (Threshold: ${currentThresholds.humidity}%)</div>
-    <div>Average Gas Level: ${avgGasLevel.toFixed(1)} PPM (Threshold: ${currentThresholds.gas} PPM)</div>
-    <div class="mt-2 font-bold">${statusMessage}</div>
-  `;
-  
-  // Create the data object to be uploaded to Supabase
-  const spoilageData = {
-    status_message: statusMessage,
-    avg_temperature: avgTemperature,
-    avg_humidity: avgHumidity,
-    avg_gas_level: avgGasLevel,
-    temperature_threshold: currentThresholds.temperature,
-    humidity_threshold: currentThresholds.humidity,
-    gas_threshold: currentThresholds.gas
-  };
-  
   try {
-    // Upload the data to Supabase
+    // Validate readings data
+    if (!readings.every(r => 
+      typeof r.temperature === 'number' && 
+      typeof r.humidity === 'number' && 
+      typeof r.gas_level === 'number'
+    )) {
+      throw new Error('Invalid reading data format');
+    }
+
+    // Get active thresholds
+    const thresholds = getActiveThresholds();
+    if (!thresholds || !thresholds.temperature || !thresholds.humidity || !thresholds.gas) {
+      throw new Error('Invalid thresholds configuration');
+    }
+
+    // Validate weights
+    if (!currentWeights || 
+        typeof currentWeights.temperature !== 'number' || 
+        typeof currentWeights.humidity !== 'number' || 
+        typeof currentWeights.gas !== 'number') {
+      throw new Error('Invalid weights configuration');
+    }
+
+    // Calculate WSI
+    const wsi = calculateWSI(readings);
+    console.log('Calculated WSI:', wsi);
+    
+    if (typeof wsi !== 'number' || isNaN(wsi)) {
+      throw new Error('Invalid WSI calculation result');
+    }
+
+    const statusInfo = getStatusInfo(wsi);
+    console.log('Status info:', statusInfo);
+    
+    // Update the status display
+    const spoilageStatus = document.getElementById('spoilage-status');
+    if (!spoilageStatus) {
+      throw new Error('Spoilage status element not found');
+    }
+
+    spoilageStatus.classList.remove('hidden');
+    spoilageStatus.className = `p-4 mt-4 rounded-lg ${statusInfo.class}`;
+    
+    spoilageStatus.innerHTML = `
+      <h3 class="font-bold mb-2">Analysis Results:</h3>
+      <div>Weighted Spoilage Index: ${wsi.toFixed(2)}</div>
+      <div class="mt-2 font-bold">${statusInfo.message}</div>
+    `;
+    
+    // Calculate average values from readings
+    const avgTemperature = readings.reduce((sum, r) => sum + r.temperature, 0) / readings.length;
+    const avgHumidity = readings.reduce((sum, r) => sum + r.humidity, 0) / readings.length;
+    const avgGasLevel = readings.reduce((sum, r) => sum + r.gas_level, 0) / readings.length;
+    
+    // Create the data object to be uploaded to Supabase with exact column names from schema
+    const spoilageData = {
+      avg_temperature: avgTemperature,
+      avg_humidity: avgHumidity,
+      avg_gas_level: avgGasLevel,
+      temperature_threshold: thresholds.temperature,
+      humidity_threshold: thresholds.humidity,
+      gas_threshold: thresholds.gas,
+      status_message: statusInfo.message
+    };
+    
+    console.log('Saving spoilage data:', spoilageData);
+    
     const { data, error } = await supabase
       .from('spoilage_status')
       .insert([spoilageData]);
     
     if (error) {
-      console.error('Error uploading spoilage status:', error);
-      showNotification('Failed to save spoilage status to database');
-    } else {
-      console.log('Spoilage status uploaded successfully:', data);
-      showNotification('Spoilage status saved to database');
+      console.error('Supabase error:', error);
+      throw new Error(`Database error: ${error.message}`);
     }
-  } catch (err) {
-    console.error('Exception when uploading spoilage status:', err);
-    showNotification('Error occurred while saving data');
+
+    showNotification('Spoilage status saved to database');
+    
+    // Update charts
+    updateCharts();
+    
+  } catch (error) {
+    console.error('Error calculating spoilage status:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      readings: readings,
+      thresholds: getActiveThresholds(),
+      weights: currentWeights
+    });
+    showNotification(`Failed to calculate spoilage status: ${error.message}`);
+  }
+}
+
+// Update calculateWSI function
+function calculateWSI(readings) {
+  console.log('Calculating WSI with readings:', readings);
+  
+  const thresholds = getActiveThresholds();
+  console.log('Active thresholds:', thresholds);
+  
+  if (!thresholds || !thresholds.temperature || !thresholds.humidity || !thresholds.gas) {
+    throw new Error('Invalid thresholds configuration');
+  }
+
+  // Calculate average values
+  const avgTemperature = readings.reduce((sum, r) => sum + (r.temperature || 0), 0) / readings.length;
+  const avgHumidity = readings.reduce((sum, r) => sum + (r.humidity || 0), 0) / readings.length;
+  const avgGasLevel = readings.reduce((sum, r) => sum + (r.gas_level || 0), 0) / readings.length;
+  
+  console.log('Average values:', {
+    temperature: avgTemperature,
+    humidity: avgHumidity,
+    gas: avgGasLevel
+  });
+  
+  // Calculate ratios (capped at 2)
+  const tempRatio = Math.min(avgTemperature / thresholds.temperature, 2);
+  const humidityRatio = Math.min(avgHumidity / thresholds.humidity, 2);
+  const gasRatio = Math.min(avgGasLevel / thresholds.gas, 2);
+  
+  console.log('Ratios:', {
+    temperature: tempRatio,
+    humidity: humidityRatio,
+    gas: gasRatio
+  });
+  
+  // Calculate weighted components
+  const tempComponent = tempRatio * (currentWeights.temperature || 0.33);
+  const humidityComponent = humidityRatio * (currentWeights.humidity || 0.33);
+  const gasComponent = gasRatio * (currentWeights.gas || 0.34);
+  
+  console.log('Weighted components:', {
+    temperature: tempComponent,
+    humidity: humidityComponent,
+    gas: gasComponent
+  });
+  
+  // Calculate final WSI (capped at 2)
+  const wsi = Math.min(tempComponent + humidityComponent + gasComponent, 2);
+  console.log('Final WSI:', wsi);
+  
+  if (isNaN(wsi)) {
+    throw new Error('Invalid WSI calculation result');
+  }
+  
+  return wsi;
+}
+
+// Update getActiveThresholds function
+function getActiveThresholds() {
+  try {
+    const storageType = document.getElementById('food-type').value;
+    console.log('Storage type:', storageType);
+    
+    if (storageType === 'custom') {
+      const temp = parseFloat(document.getElementById('custom-temperature').value);
+      const humidity = parseFloat(document.getElementById('custom-humidity').value);
+      const gas = parseFloat(document.getElementById('custom-gas').value);
+      
+      if (isNaN(temp) || isNaN(humidity) || isNaN(gas)) {
+        throw new Error('Invalid custom threshold values');
+      }
+      
+      return { temperature: temp, humidity: humidity, gas: gas };
+    } else {
+      const thresholds = foodThresholds[storageType];
+      if (!thresholds) {
+        throw new Error(`No thresholds found for ${storageType}`);
+      }
+      return thresholds;
+    }
+  } catch (error) {
+    console.error('Error getting active thresholds:', error);
+    throw error;
+  }
+}
+
+// Add getStatusInfo function
+function getStatusInfo(wsi) {
+  if (wsi <= 0.7) {
+    return { 
+      message: 'Optimal Storage Conditions', 
+      class: 'bg-green-100 text-green-800',
+      severity: 'low'
+    };
+  } else if (wsi <= 0.9) {
+    return { 
+      message: 'Good Conditions', 
+      class: 'bg-green-50 text-green-600',
+      severity: 'low'
+    };
+  } else if (wsi <= 1.0) {
+    return { 
+      message: 'Acceptable Conditions', 
+      class: 'bg-yellow-50 text-yellow-600',
+      severity: 'medium'
+    };
+  } else if (wsi <= 1.2) {
+    return { 
+      message: 'Caution: Approaching Thresholds', 
+      class: 'bg-yellow-100 text-yellow-800',
+      severity: 'medium'
+    };
+  } else if (wsi <= 1.5) {
+    return { 
+      message: 'Warning: Thresholds Exceeded', 
+      class: 'bg-orange-100 text-orange-800',
+      severity: 'high'
+    };
+  } else {
+    return { 
+      message: 'Critical: Food Spoilage Likely', 
+      class: 'bg-red-100 text-red-800',
+      severity: 'critical'
+    };
   }
 }
 
@@ -577,6 +758,42 @@ function showNotification(message, type = 'info') {
     notification.style.opacity = '0';
     setTimeout(() => notification.remove(), 300);
   }, 3000);
+}
+
+// Add showPopupMessage function
+function showPopupMessage(message) {
+  // Create popup container
+  const popup = document.createElement('div');
+  popup.className = 'fixed top-4 right-4 bg-white rounded-lg shadow-lg p-4 z-50 transform transition-all duration-300 ease-in-out';
+  popup.style.maxWidth = '400px';
+  
+  // Create popup content
+  popup.innerHTML = `
+    <div class="flex justify-between items-start">
+      <div class="flex-1">
+        <p class="text-gray-800">${message}</p>
+      </div>
+      <button class="ml-4 text-gray-500 hover:text-gray-700 focus:outline-none">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  `;
+  
+  // Add to document
+  document.body.appendChild(popup);
+  
+  // Add click handler for close button
+  const closeButton = popup.querySelector('button');
+  closeButton.addEventListener('click', () => {
+    popup.remove();
+  });
+  
+  // Auto close after 5 seconds
+  setTimeout(() => {
+    popup.style.opacity = '0';
+    popup.style.transform = 'translateY(-20px)';
+    setTimeout(() => popup.remove(), 300);
+  }, 5000);
 }
 
 // Initialize the dashboard when the page loads
